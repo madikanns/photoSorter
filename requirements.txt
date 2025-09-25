@@ -1,0 +1,33 @@
+# PhotoSorter Python Dependencies
+# Core dependencies for GPS extraction and web server
+
+# Web server
+http.server
+
+# GPS extraction and EXIF processing
+# Note: exiftool needs to be installed at system level
+# For deployment, we'll use a different approach
+
+# Alternative GPS extraction libraries
+Pillow>=9.0.0
+exifread>=2.3.2
+
+# HTTP requests for reverse geocoding
+requests>=2.28.0
+
+# JSON handling (built-in, but explicit for clarity)
+# json
+
+# Base64 encoding (built-in)
+# base64
+
+# File system operations (built-in)
+# os
+# tempfile
+# subprocess
+
+# Time operations (built-in)
+# time
+
+# URL handling (built-in)
+# urllib

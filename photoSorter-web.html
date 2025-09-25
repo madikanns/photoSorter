@@ -1,0 +1,2760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>photoSorter - Secure Web Version</title>
+            <!-- Content Security Policy for XSS protection -->
+            <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self';">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1976d2, #42a5f5);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .file-section {
+            margin-bottom: 30px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-label {
+            display: block;
+            padding: 20px;
+            border: 2px dashed #1976d2;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .file-label:hover {
+            background: #e3f2fd;
+            border-color: #1565c0;
+        }
+
+        .file-label.dragover {
+            background: #e3f2fd;
+            border-color: #1565c0;
+            transform: scale(1.02);
+        }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px 5px;
+        }
+
+        .btn:hover {
+            background: #1565c0;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .progress {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress.show {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #1976d2, #42a5f5);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.processing {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+
+        .status.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .year-group {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #1976d2;
+        }
+
+        .year-title {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .file-list {
+            list-style: none;
+        }
+
+        .file-list li {
+            padding: 5px 0;
+            color: #666;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .download-btn {
+            background: #28a745;
+            margin-top: 20px;
+        }
+
+        .download-btn:hover {
+            background: #218838;
+        }
+
+        /* Duplicate Management Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: none;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .duplicate-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+        }
+
+        .duplicate-group-title {
+            font-weight: bold;
+            color: #dc3545;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .duplicate-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            gap: 12px;
+        }
+        
+        .duplicate-thumbnail {
+            flex-shrink: 0;
+        }
+        
+        .duplicate-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .duplicate-name {
+            margin-bottom: 4px;
+        }
+        
+                .duplicate-details {
+                    font-size: 0.85rem;
+                }
+                
+                /* Image hover popup styles */
+                .image-hover-popup {
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: white;
+                    border: 2px solid #1976d2;
+                    border-radius: 8px;
+                    padding: 10px;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                    z-index: 10000;
+                    max-width: 80vw;
+                    max-height: 80vh;
+                    display: none;
+                    pointer-events: none;
+                }
+                
+                .image-hover-popup img {
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                    border-radius: 4px;
+                }
+                
+                .image-hover-popup .popup-info {
+                    position: absolute;
+                    bottom: -30px;
+                    left: 0;
+                    right: 0;
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    padding: 5px 10px;
+                    border-radius: 4px;
+                    font-size: 0.8rem;
+                    text-align: center;
+                }
+                
+                .duplicate-thumbnail {
+                    position: relative;
+                    cursor: pointer;
+                }
+                
+                .duplicate-thumbnail:hover {
+                    transform: scale(1.05);
+                    transition: transform 0.2s ease;
+                }
+
+        .duplicate-item:hover {
+            background: #f8f9fa;
+        }
+
+        .duplicate-path {
+            flex: 1;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #495057;
+            word-break: break-all;
+        }
+
+        .duplicate-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background 0.3s;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
+        .file-size {
+            color: #6c757d;
+            font-size: 0.8rem;
+        }
+
+        .no-duplicates {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        kbd {
+            background: #f1f3f4;
+            border: 1px solid #dadce0;
+            border-radius: 3px;
+            box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+            color: #3c4043;
+            display: inline-block;
+            font-family: monospace;
+            font-size: 0.85em;
+            font-weight: 500;
+            line-height: 1;
+            padding: 2px 4px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+                    <h1>📸 photoSorter</h1>
+                    <p>Secure photo and video organization by location, year and month</p>
+            <div style="background: rgba(255,255,255,0.2); padding: 10px; border-radius: 6px; margin-top: 15px; font-size: 0.9rem;">
+                🛡️ <strong>Security Features:</strong> Input validation, file size limits, path protection, and secure operations
+            </div>
+        </div>
+
+        <div class="content">
+            <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #1976d2;">
+                        <h3 style="color: #1976d2; margin-bottom: 15px;">📋 How to Use:</h3>
+                        <ol style="color: #333; line-height: 1.6;">
+                            <li><strong>Select Folder:</strong> Click "Select Media Folder" to choose an entire folder</li>
+                            <li><strong>Organize:</strong> Click "Organize Media" to create organized folder structure</li>
+                            <li><strong>Result:</strong> Photos and videos are copied to "Organized photo" folder with year/month subfolders</li>
+                        </ol>
+                <div style="background: #d4edda; padding: 10px; border-radius: 4px; margin-top: 15px; color: #155724;">
+                    <strong>✅ Browser Support:</strong> Works best in Chrome and Edge browsers
+                </div>
+                <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px; color: #856404;">
+                    <strong>🛡️ Security Limits:</strong> Max 1000 files, 100MB per file, 5GB total. Image and video files allowed.
+                </div>
+            </div>
+
+            <div class="file-section">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <button class="btn" id="folderBtn" style="padding: 25px 40px; font-size: 1.2rem; min-width: 300px;">
+                        <div style="font-size: 3rem; margin-bottom: 15px;">📁</div>
+                                <div>Select Media Folder</div>
+                                <div style="font-size: 1rem; color: #666; margin-top: 10px;">Choose entire folder to organize</div>
+                    </button>
+                </div>
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <div id="fileCount"></div>
+                </div>
+            </div>
+
+            <div style="text-align: center;">
+                        <button class="btn" id="organizeBtn" disabled>Organize Media</button>
+                        <button class="btn btn-secondary" id="clearBtn" disabled>Clear Selection</button>
+                        <button class="btn btn-secondary" id="testGPSBtn" disabled style="background: #6c757d; color: white; margin-left: 10px;">Test GPS</button>
+            </div>
+
+            <div class="advanced-section" id="advancedSection" style="display: none;">
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #dee2e6;">
+                    <h3 style="color: #495057; margin-bottom: 15px;">⚙️ Advanced Options</h3>
+                    <div style="margin-bottom: 15px;">
+                            <label style="font-weight: bold; color: #495057; margin-bottom: 10px; display: block;">Media Organization Method:</label>
+                        <div style="display: flex; gap: 20px; align-items: center;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="radio" name="organizationMethod" value="copy" checked style="margin-right: 8px;">
+                                <span>📋 Copy Media</span>
+                                <small style="display: block; color: #6c757d; font-size: 0.9rem; margin-left: 20px;">Keep original files and create copies in organized folders</small>
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 20px; align-items: center; margin-top: 10px;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="radio" name="organizationMethod" value="move" style="margin-right: 8px;">
+                                <span>📦 Move Media</span>
+                                <small style="display: block; color: #6c757d; font-size: 0.9rem; margin-left: 20px;">Move files from original location to organized folders</small>
+                            </label>
+                        </div>
+                        <div id="moveWarning" style="display: none; background: #f8d7da; padding: 10px; border-radius: 4px; margin-top: 10px; color: #721c24; border-left: 4px solid #dc3545;">
+                            <strong>⚠️ Warning:</strong> Moving media will permanently remove files from their original locations. Make sure you have backups if needed.
+                        </div>
+                        <div id="zipOption" style="display: none; background: #d1ecf1; padding: 10px; border-radius: 4px; margin-top: 10px; color: #0c5460; border-left: 4px solid #17a2b8;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="zipFilesCheckbox" style="margin-right: 8px;">
+                                <span><strong>📦 Create Folder Backup:</strong> Create a complete ZIP backup of the selected folder before organizing</span>
+                            </label>
+                            <small style="display: block; color: #0c5460; font-size: 0.9rem; margin-top: 5px; margin-left: 24px;">
+                                This will create a complete backup ZIP of your selected folder before organizing. The ZIP will be saved in the "Organized photo" folder.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <button class="btn btn-outline" id="advancedToggle" style="background: transparent; border: 2px solid #1976d2; color: #1976d2; padding: 10px 20px;">
+                    ⚙️ Advanced Selection
+                </button>
+            </div>
+
+            <div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin: 20px 0; color: #856404;" id="organizationInfo">
+                        <strong>📁 Folder Organization:</strong> The app will create an "Organized photo" folder in your selected directory and organize photos and videos by year and month inside it. Original files will be copied (not moved).
+            </div>
+
+            <div class="progress" id="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+
+            <div class="status" id="status"></div>
+
+            <div class="results" id="results">
+                <h3>Organization Results</h3>
+                <div class="stats" id="stats"></div>
+                <div id="yearGroups"></div>
+            </div>
+        </div>
+    </div>
+
+            <!-- Duplicate Management Modal -->
+            <div id="duplicateModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <div class="modal-title">🗂️ Duplicate Media Management</div>
+                            <div style="font-size: 0.9rem; color: #6c757d; margin-top: 5px;">
+                                Files with the same name were automatically renamed with _1, _2, etc. Original files are marked in green, duplicates in red. You can delete extra copies to save space.
+                            </div>
+                        </div>
+                        <span class="close" id="closeModal">&times;</span>
+                    </div>
+                    <div id="duplicateContent">
+                        <!-- Duplicate content will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Hover Popup -->
+            <div id="imageHoverPopup" class="image-hover-popup">
+                <img id="popupImage" src="" alt="Preview">
+                <div id="popupPlaceholder" style="display: none; width: 200px; height: 200px; background: #f8f9fa; border: 2px solid #dee2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #6c757d;">
+                    📷
+                </div>
+                <div class="popup-info" id="popupInfo"></div>
+            </div>
+
+    <script>
+        class PhotoSorter {
+            constructor() {
+                this.selectedFiles = [];
+                this.organizedData = {};
+                this.duplicateCount = 0;
+                this.unidentifiedCount = 0;
+                this.duplicateFiles = new Map(); // Track duplicate files by name
+                this.processedFiles = new Map(); // Track processed file names and their count for renaming duplicates
+                this.folderHandle = null;
+                this.rootFolderHandle = null; // Explicitly store the root folder handle
+                
+                // Security limits
+                this.MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB per file
+                this.MAX_FILE_COUNT = 1000; // Maximum 1000 files
+                this.MAX_TOTAL_SIZE = 5 * 1024 * 1024 * 1024; // 5GB total
+                
+                // Dangerous paths to prevent directory traversal
+                this.DANGEROUS_PATHS = [
+                    '/System', '/Library', '/usr', '/bin', '/sbin', '/etc',
+                    '/var', '/tmp', '/Applications', '/Users/Shared',
+                    'C:\\Windows', 'C:\\System32', 'C:\\Program Files',
+                    'C:\\ProgramData', 'C:\\Users\\Public'
+                ];
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.checkFolderSupport();
+                this.updateOrganizationInfo(); // Initialize info text
+            }
+
+            initializeElements() {
+                this.folderBtn = document.getElementById('folderBtn');
+                this.fileInfo = document.getElementById('fileInfo');
+                this.fileCount = document.getElementById('fileCount');
+                this.organizeBtn = document.getElementById('organizeBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                this.testGPSBtn = document.getElementById('testGPSBtn');
+                this.progress = document.getElementById('progress');
+                this.progressBar = document.getElementById('progressBar');
+                this.status = document.getElementById('status');
+                this.results = document.getElementById('results');
+                this.stats = document.getElementById('stats');
+                this.yearGroups = document.getElementById('yearGroups');
+                this.advancedSection = document.getElementById('advancedSection');
+                this.advancedToggle = document.getElementById('advancedToggle');
+                this.organizationInfo = document.getElementById('organizationInfo');
+            }
+
+            checkFolderSupport() {
+                if (!('showDirectoryPicker' in window)) {
+                    // Check if Safari supports webkitdirectory
+                    if (this.isSafari() && this.supportsWebkitDirectory()) {
+                        this.setupSafariFolderSelection();
+                    } else {
+                        this.setupFallbackFileSelection();
+                    }
+                }
+            }
+
+            isSafari() {
+                return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            }
+
+            supportsWebkitDirectory() {
+                const input = document.createElement('input');
+                return 'webkitdirectory' in input;
+            }
+
+            setupSafariFolderSelection() {
+                // Create a hidden file input with webkitdirectory
+                const safariInput = document.createElement('input');
+                safariInput.type = 'file';
+                safariInput.webkitdirectory = true;
+                safariInput.multiple = true;
+                safariInput.accept = 'image/*,video/*';
+                safariInput.style.display = 'none';
+                document.body.appendChild(safariInput);
+
+                // Update button text for Safari
+                this.folderBtn.innerHTML = `
+                    <div style="font-size: 3rem; margin-bottom: 15px;">📁</div>
+                            <div>Select Media Folder (Safari)</div>
+                            <div style="font-size: 1rem; color: #666; margin-top: 10px;">Choose entire folder to organize</div>
+                `;
+
+                // Handle Safari folder selection
+                safariInput.addEventListener('change', (e) => {
+                    const files = Array.from(e.target.files);
+                    this.processFiles(files);
+                    this.showStatus(`Found ${files.length} media files in folder`, 'success');
+                });
+
+                // Update button click handler for Safari
+                this.folderBtn.onclick = () => {
+                    safariInput.click();
+                };
+
+                // Show Safari-specific instructions
+                this.showSafariInstructions();
+            }
+
+            showSafariInstructions() {
+                const fileSection = document.querySelector('.file-section');
+                if (fileSection) {
+                    const safariNote = document.createElement('div');
+                    safariNote.style.cssText = `
+                        background: #fff3cd;
+                        padding: 15px;
+                        border-radius: 6px;
+                        margin: 20px 0;
+                        color: #856404;
+                        border-left: 4px solid #ffc107;
+                        text-align: center;
+                    `;
+                    safariNote.innerHTML = `
+                        <div style="font-size: 1.5rem; margin-bottom: 10px;">🍎</div>
+                        <strong>Safari Mode:</strong> Using webkitdirectory for folder selection
+                        <br><small>This is a Safari-compatible workaround for folder access.</small>
+                    `;
+                    fileSection.appendChild(safariNote);
+                }
+            }
+
+            setupFallbackFileSelection() {
+                // Create a hidden file input for individual file selection
+                const fallbackInput = document.createElement('input');
+                fallbackInput.type = 'file';
+                fallbackInput.multiple = true;
+                fallbackInput.accept = 'image/*,video/*';
+                fallbackInput.style.display = 'none';
+                document.body.appendChild(fallbackInput);
+
+                // Update button text and functionality
+                this.folderBtn.innerHTML = `
+                    <div style="font-size: 3rem; margin-bottom: 15px;">📁</div>
+                            <div>Select Media Files</div>
+                            <div style="font-size: 1rem; color: #666; margin-top: 10px;">Choose multiple media files (Ctrl+A for all)</div>
+                `;
+
+                // Handle fallback file selection
+                fallbackInput.addEventListener('change', (e) => {
+                    const files = Array.from(e.target.files);
+                    this.processFiles(files);
+                    this.showStatus(`Found ${files.length} media files`, 'success');
+                });
+
+                // Update button click handler for fallback
+                this.folderBtn.onclick = () => {
+                    fallbackInput.click();
+                };
+
+                // Show fallback instructions
+                this.showFallbackInstructions();
+            }
+
+            showFallbackInstructions() {
+                const fileSection = document.querySelector('.file-section');
+                if (fileSection) {
+                    const fallbackNote = document.createElement('div');
+                    fallbackNote.style.cssText = `
+                        background: #fff3cd;
+                        padding: 15px;
+                        border-radius: 6px;
+                        margin: 20px 0;
+                        color: #856404;
+                        border-left: 4px solid #ffc107;
+                        text-align: center;
+                    `;
+                    fallbackNote.innerHTML = `
+                        <div style="font-size: 1.5rem; margin-bottom: 10px;">⚠️</div>
+                        <strong>Limited Browser Support:</strong> This browser doesn't support folder selection.
+                        <br><small>You can select multiple photo files instead. For full folder access, please use Chrome or Edge.</small>
+                    `;
+                    fileSection.appendChild(fallbackNote);
+                }
+            }
+
+            showBrowserCompatibilityMessage() {
+                const fileSection = document.querySelector('.file-section');
+                if (fileSection) {
+                    const compatibilityNote = document.createElement('div');
+                    compatibilityNote.style.cssText = `
+                        background: #f8d7da;
+                        padding: 20px;
+                        border-radius: 8px;
+                        margin: 20px 0;
+                        color: #721c24;
+                        border-left: 4px solid #dc3545;
+                        text-align: center;
+                    `;
+                    compatibilityNote.innerHTML = `
+                        <div style="font-size: 2rem; margin-bottom: 15px;">⚠️</div>
+                        <h3 style="margin: 0 0 10px 0; color: #721c24;">Browser Not Supported</h3>
+                        <p style="margin: 0 0 15px 0;">This browser doesn't support folder selection.</p>
+                        <p style="margin: 0; font-weight: bold;">Please use Chrome or Edge browser for the best experience.</p>
+                    `;
+                    fileSection.appendChild(compatibilityNote);
+                }
+            }
+
+            setupEventListeners() {
+                this.folderBtn.addEventListener('click', () => this.handleFolderSelect());
+                this.organizeBtn.addEventListener('click', () => this.organizePhotos());
+                this.clearBtn.addEventListener('click', () => this.clearSelection());
+                this.testGPSBtn.addEventListener('click', () => this.testGPS());
+                this.advancedToggle.addEventListener('click', () => this.toggleAdvancedSection());
+                
+                // Add event listeners for radio button changes
+                document.addEventListener('change', (e) => {
+                    if (e.target.name === 'organizationMethod') {
+                        this.updateOrganizationInfo();
+                    }
+                });
+
+                        // Add event listeners for duplicate management
+                        document.addEventListener('click', (e) => {
+                            if (e.target.id === 'duplicateCounter' && this.duplicateCount > 0) {
+                                this.showDuplicateModal();
+                            } else if (e.target.id === 'closeModal') {
+                                this.closeDuplicateModal();
+                            } else if (e.target.classList.contains('modal')) {
+                                this.closeDuplicateModal();
+                            }
+                        });
+            }
+
+            toggleAdvancedSection() {
+                const isVisible = this.advancedSection.style.display !== 'none';
+                this.advancedSection.style.display = isVisible ? 'none' : 'block';
+                this.advancedToggle.textContent = isVisible ? '⚙️ Advanced Selection' : '⚙️ Hide Advanced Options';
+            }
+
+            getOrganizationMethod() {
+                const selectedMethod = document.querySelector('input[name="organizationMethod"]:checked');
+                return selectedMethod ? selectedMethod.value : 'copy';
+            }
+
+            isZipEnabled() {
+                const zipCheckbox = document.getElementById('zipFilesCheckbox');
+                return zipCheckbox ? zipCheckbox.checked : false;
+            }
+
+            updateOrganizationInfo() {
+                const method = this.getOrganizationMethod();
+                const action = method === 'move' ? 'moved' : 'copied';
+                const actionText = method === 'move' ? 'moved from original location' : 'copied (original files preserved)';
+                
+                        this.organizationInfo.innerHTML = `
+                            <strong>📁 Folder Organization:</strong> The app will create an "Organized photo" folder in your selected directory and organize photos and videos by year and month inside it. Files will be ${actionText}.
+                        `;
+                
+                // Show/hide warning for move operation
+                const moveWarning = document.getElementById('moveWarning');
+                if (moveWarning) {
+                    moveWarning.style.display = method === 'move' ? 'block' : 'none';
+                }
+                
+                // Show/hide zip option for move operation
+                const zipOption = document.getElementById('zipOption');
+                if (zipOption) {
+                    zipOption.style.display = method === 'move' ? 'block' : 'none';
+                }
+            }
+
+            // Security validation methods
+            sanitizeFileName(name) {
+                // Remove dangerous characters and limit length
+                return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').substring(0, 255);
+            }
+
+            validateFilePath(path) {
+                // Check for dangerous paths
+                const normalizedPath = path.replace(/\\/g, '/');
+                return !this.DANGEROUS_PATHS.some(dangerous => 
+                    normalizedPath.toLowerCase().startsWith(dangerous.toLowerCase())
+                );
+            }
+
+            validateFileSize(file) {
+                return file.size <= this.MAX_FILE_SIZE;
+            }
+
+            validateFileCount(files) {
+                return files.length <= this.MAX_FILE_COUNT;
+            }
+
+            validateTotalSize(files) {
+                const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+                return totalSize <= this.MAX_TOTAL_SIZE;
+            }
+
+            validateFileType(file) {
+                const extension = file.name.toLowerCase().split('.').pop();
+                const allowedExtensions = [
+                    // Image formats
+                    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp',
+                    // Video formats
+                    'mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', '3gp', 'flv', 'wmv'
+                ];
+                return allowedExtensions.includes(extension);
+            }
+
+            showSecurityError(message) {
+                this.showStatus(`Security Error: ${message}`, 'error');
+                console.error('Security validation failed:', message);
+            }
+
+                    confirmDestructiveAction(action) {
+                        return confirm(`⚠️ WARNING: This will ${action}. Are you sure you want to continue?`);
+                    }
+
+                    addSuffixToFileName(fileName, suffix) {
+                        const lastDotIndex = fileName.lastIndexOf('.');
+                        if (lastDotIndex === -1) {
+                            // No extension
+                            return fileName + suffix;
+                        } else {
+                            // Has extension
+                            const nameWithoutExt = fileName.substring(0, lastDotIndex);
+                            const extension = fileName.substring(lastDotIndex);
+                            return nameWithoutExt + suffix + extension;
+                        }
+                    }
+
+            // Duplicate management methods
+            showDuplicateModal() {
+                if (this.duplicateCount === 0) {
+                    this.showStatus('No duplicates found to manage', 'processing');
+                    return;
+                }
+
+                const modal = document.getElementById('duplicateModal');
+                const content = document.getElementById('duplicateContent');
+                
+                // Build duplicate content
+                let html = '';
+                
+                if (this.duplicateFiles.size === 0) {
+                    html = '<div class="no-duplicates">No duplicate files found.</div>';
+                } else {
+                    for (const [fileName, files] of this.duplicateFiles.entries()) {
+                        html += `
+                            <div class="duplicate-group">
+                                <div class="duplicate-group-title">
+                                    📄 ${fileName} (${files.length} files: 1 original + ${files.length - 1} duplicates)
+                                </div>
+                                <div style="font-size: 0.9rem; color: #6c757d; margin-bottom: 10px;">
+                                    Original file (green) and renamed duplicates (red) with _1, _2, etc. to avoid conflicts.
+                                </div>
+                        `;
+                        
+                        files.forEach((fileData, index) => {
+                            const file = fileData.file || fileData; // Use stored file object or fallback
+                            const filePath = this.getFilePath(file);
+                            const fileSize = this.formatFileSize(file.size);
+                            const displayName = fileData.renamedName || file.name;
+                            const originalName = fileData.originalName || file.name;
+                            const isOriginal = fileData.isOriginal;
+                            
+                            // Create thumbnail with error handling
+                            let thumbnailSrc = '';
+                            let thumbnailAlt = 'No preview available';
+                            
+                            try {
+                                // Check if file is a valid File or Blob object
+                                if (file && (file instanceof File || file instanceof Blob)) {
+                                    thumbnailSrc = URL.createObjectURL(file);
+                                    thumbnailAlt = displayName;
+                                    console.log(`Created thumbnail for ${displayName}:`, thumbnailSrc);
+                                } else {
+                                    console.warn('Invalid file object for thumbnail:', file, 'Type:', typeof file);
+                                }
+                            } catch (error) {
+                                console.error('Error creating object URL for file:', file, error);
+                            }
+                            
+                            html += `
+                                <div class="duplicate-item" data-file-index="${index}" data-file-name="${fileName}">
+                                    <div class="duplicate-thumbnail">
+                                        ${thumbnailSrc ? 
+                                            `<img src="${thumbnailSrc}" alt="${thumbnailAlt}" 
+                                                 style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; border: 2px solid ${isOriginal ? '#28a745' : '#dc3545'};"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                                                 onmouseenter="photoSorter.showImagePopup('${thumbnailSrc}', '${displayName}', ${file.size}, ${isOriginal})"
+                                                 onmouseleave="photoSorter.hideImagePopup()">
+                                            <div style="width: 60px; height: 60px; background: #f8f9fa; border: 2px solid ${isOriginal ? '#28a745' : '#dc3545'}; border-radius: 4px; display: none; align-items: center; justify-content: center; font-size: 0.7rem; color: #6c757d;">
+                                                📷
+                                            </div>` :
+                                            `<div style="width: 60px; height: 60px; background: #f8f9fa; border: 2px solid ${isOriginal ? '#28a745' : '#dc3545'}; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #6c757d;"
+                                                 onmouseenter="photoSorter.showImagePopup('', '${displayName}', ${file.size}, ${isOriginal})"
+                                                 onmouseleave="photoSorter.hideImagePopup()">
+                                                📷
+                                            </div>`
+                                        }
+                                    </div>
+                                    <div class="duplicate-info">
+                                        <div class="duplicate-name">
+                                            <strong style="color: ${isOriginal ? '#28a745' : '#dc3545'};">${displayName}</strong>
+                                            ${isOriginal ? '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.7rem; margin-left: 8px;">ORIGINAL</span>' : ''}
+                                        </div>
+                                        <div class="duplicate-details">
+                                            <small style="color: #6c757d;">Path: ${filePath}</small><br>
+                                            <small style="color: #6c757d;">Size: ${fileSize}</small>
+                                        </div>
+                                    </div>
+                                    <div class="duplicate-actions">
+                                        ${!isOriginal ? `<button class="delete-btn" onclick="photoSorter.deleteDuplicateFile('${fileName}', ${index})" title="Delete this duplicate file">
+                                            🗑️ Delete
+                                        </button>` : '<span style="color: #28a745; font-size: 0.9rem;">Keep Original</span>'}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        html += '</div>';
+                    }
+                }
+                
+                content.innerHTML = html;
+                modal.style.display = 'block';
+            }
+
+            closeDuplicateModal() {
+                const modal = document.getElementById('duplicateModal');
+                modal.style.display = 'none';
+                
+                // Clean up object URLs to prevent memory leaks
+                this.cleanupObjectURLs();
+            }
+            
+            cleanupObjectURLs() {
+                // Revoke all object URLs that were created for thumbnails
+                const images = document.querySelectorAll('#duplicateModal img[src^="blob:"]');
+                images.forEach(img => {
+                    try {
+                        URL.revokeObjectURL(img.src);
+                    } catch (error) {
+                        console.warn('Error revoking object URL:', error);
+                    }
+                });
+            }
+
+            getFilePath(file) {
+                // Try to get the file path from the file object
+                if (file.webkitRelativePath) {
+                    return file.webkitRelativePath;
+                } else if (file.name) {
+                    return file.name;
+                } else {
+                    return 'Unknown path';
+                }
+            }
+
+            async deleteDuplicateFile(fileName, index) {
+                console.log(`Attempting to delete duplicate: ${fileName} at index ${index}`);
+                
+                // Get the actual file to delete to show the correct filename in confirmation
+                let fileToDeleteName = fileName;
+                if (this.duplicateFiles.has(fileName)) {
+                    const files = this.duplicateFiles.get(fileName);
+                    if (files && files[index]) {
+                        const fileToDelete = files[index];
+                        fileToDeleteName = fileToDelete.renamedName || fileToDelete.originalName || fileName;
+                    }
+                }
+                
+                if (!this.confirmDestructiveAction(`delete duplicate file "${fileToDeleteName}"`)) {
+                    console.log('User cancelled deletion');
+                    return;
+                }
+
+                try {
+                    // Remove from duplicate files map
+                    if (this.duplicateFiles.has(fileName)) {
+                        const files = this.duplicateFiles.get(fileName);
+                        console.log(`Found ${files.length} files for ${fileName}:`, files);
+                        
+                        if (files && files[index]) {
+                            const fileToDelete = files[index];
+                            console.log(`File to delete:`, fileToDelete);
+                            
+                            // Only allow deletion of non-original files
+                            if (fileToDelete.isOriginal) {
+                                this.showStatus('Cannot delete original file', 'error');
+                                return;
+                            }
+                            
+                            // Actually delete the file from the file system
+                            try {
+                                console.log(`Attempting to delete file: ${fileToDelete.renamedName || fileToDelete.originalName}`);
+                                
+                                // Find and delete the actual file from the organized folder
+                                if (this.rootFolderHandle) {
+                                    // The file should be in the organized folder structure
+                                    const organizedFolderHandle = await this.rootFolderHandle.getDirectoryHandle('Organized photo');
+                                    
+                                    // We need to find which year/month folder the file is in
+                                    // Since we don't store the exact path, we'll search through the organized structure
+                                    let fileDeleted = false;
+                                    
+                                    for (const [year, yearData] of Object.entries(this.organizedData)) {
+                                        if (year === 'Unknown') continue; // Skip unknown year folder
+                                        
+                                        try {
+                                            const yearFolderHandle = await organizedFolderHandle.getDirectoryHandle(year);
+                                            
+                                            for (const [month, monthData] of Object.entries(yearData)) {
+                                                try {
+                                                    const monthFolderHandle = await yearFolderHandle.getDirectoryHandle(`${month.toString().padStart(2, '0')}-${monthData.monthName}`);
+                                                    
+                                                    // Try to delete the file from this month folder
+                                                    try {
+                                                        await monthFolderHandle.removeEntry(fileToDelete.renamedName || fileToDelete.originalName);
+                                                        console.log(`Successfully deleted file: ${fileToDelete.renamedName || fileToDelete.originalName} from ${year}/${month.toString().padStart(2, '0')}-${monthData.monthName}`);
+                                                        fileDeleted = true;
+                                                        break;
+                                                    } catch (fileError) {
+                                                        // File not in this folder, continue searching
+                                                        console.log(`File not found in ${year}/${month.toString().padStart(2, '0')}-${monthData.monthName}`);
+                                                    }
+                                                } catch (monthError) {
+                                                    console.log(`Month folder not found: ${month.toString().padStart(2, '0')}-${monthData.monthName}`);
+                                                }
+                                            }
+                                            
+                                            if (fileDeleted) break;
+                                        } catch (yearError) {
+                                            console.log(`Year folder not found: ${year}`);
+                                        }
+                                    }
+                                    
+                                    if (!fileDeleted) {
+                                        console.warn(`Could not find and delete file: ${fileToDelete.renamedName || fileToDelete.originalName}`);
+                                        this.showStatus(`Warning: Could not delete file from organized folder: ${fileToDelete.renamedName || fileToDelete.originalName}`, 'error');
+                                    }
+                                }
+                            } catch (deleteError) {
+                                console.error('Error deleting file from file system:', deleteError);
+                                this.showStatus(`Error deleting file from file system: ${deleteError.message}`, 'error');
+                            }
+                            
+                            // Remove from in-memory data structure
+                            files.splice(index, 1);
+                            console.log(`After deletion, ${files.length} files remain:`, files);
+                            
+                            // If no more duplicates (only original remains), remove the entry
+                            // We only keep the entry if there are actual duplicates (more than just the original)
+                            const remainingDuplicates = files.filter(f => !f.isOriginal);
+                            console.log(`Remaining duplicates: ${remainingDuplicates.length}`);
+                            
+                            if (remainingDuplicates.length === 0) {
+                                this.duplicateFiles.delete(fileName);
+                                console.log(`Removed entry for ${fileName} from duplicateFiles`);
+                            }
+                            
+                            // Update duplicate count
+                            this.duplicateCount = Math.max(0, this.duplicateCount - 1);
+                            console.log(`Updated duplicate count to: ${this.duplicateCount}`);
+                            
+                            // Update UI
+                            this.updateDuplicateCounter();
+                            this.showDuplicateModal(); // Refresh modal
+                            
+                            this.showStatus(`Deleted duplicate: ${fileToDelete.renamedName || fileName}`, 'success');
+                        } else {
+                            console.error(`File at index ${index} not found for ${fileName}`);
+                            this.showStatus('File not found for deletion', 'error');
+                        }
+                    } else {
+                        console.error(`No entry found for ${fileName} in duplicateFiles`);
+                        this.showStatus('No duplicate files found for deletion', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting duplicate file:', error);
+                    this.showStatus('Error deleting duplicate file', 'error');
+                }
+            }
+
+            updateDuplicateCounter() {
+                const counter = document.getElementById('duplicateCounter');
+                if (counter) {
+                    counter.textContent = this.duplicateCount || 0;
+                    if (this.duplicateCount === 0) {
+                        counter.style.cursor = 'default';
+                        counter.style.color = '#6c757d';
+                        counter.style.textDecoration = 'none';
+                        counter.title = 'No duplicates found';
+                    } else {
+                        counter.style.cursor = 'pointer';
+                        counter.style.color = '#dc3545';
+                        counter.style.textDecoration = 'underline';
+                                counter.title = 'Click to view and manage renamed duplicate files';
+                    }
+                }
+            }
+
+            // Image hover popup methods
+            showImagePopup(imageSrc, fileName, fileSize, isOriginal) {
+                const popup = document.getElementById('imageHoverPopup');
+                const popupImage = document.getElementById('popupImage');
+                const popupPlaceholder = document.getElementById('popupPlaceholder');
+                const popupInfo = document.getElementById('popupInfo');
+                
+                if (imageSrc && imageSrc.trim() !== '') {
+                    popupImage.src = imageSrc;
+                    popupImage.alt = fileName;
+                    popupImage.style.display = 'block';
+                    popupPlaceholder.style.display = 'none';
+                } else {
+                    // No image available, show placeholder
+                    popupImage.style.display = 'none';
+                    popupPlaceholder.style.display = 'flex';
+                }
+                
+                popupInfo.textContent = `${fileName} (${this.formatFileSize(fileSize)}) - ${isOriginal ? 'Original' : 'Duplicate'}`;
+                
+                popup.style.display = 'block';
+            }
+
+            hideImagePopup() {
+                const popup = document.getElementById('imageHoverPopup');
+                popup.style.display = 'none';
+            }
+
+            async deleteOriginalFile(file, rootDirectoryHandle) {
+                // Find the file in the directory structure and delete it
+                const fileName = file.name;
+                const filePath = await this.findFilePath(fileName, rootDirectoryHandle);
+                
+                if (filePath) {
+                    // Navigate to the parent directory and delete the file
+                    let currentHandle = rootDirectoryHandle;
+                    const pathParts = filePath.split('/');
+                    
+                    // Navigate to the parent directory (skip the filename)
+                    for (let i = 0; i < pathParts.length - 1; i++) {
+                        if (pathParts[i]) {
+                            currentHandle = await currentHandle.getDirectoryHandle(pathParts[i]);
+                        }
+                    }
+                    
+                    // Delete the file
+                    await currentHandle.removeEntry(fileName);
+                    return true;
+                }
+                return false;
+            }
+
+            async findFilePath(fileName, directoryHandle, currentPath = '') {
+                try {
+                    for await (const [name, handle] of directoryHandle.entries()) {
+                        if (handle.kind === 'file' && name === fileName) {
+                            return currentPath ? `${currentPath}/${name}` : name;
+                        } else if (handle.kind === 'directory' && name !== 'Organized photo') {
+                            // Skip the "Organized photo" folder to avoid deleting files we just created
+                            const subPath = currentPath ? `${currentPath}/${name}` : name;
+                            const found = await this.findFilePath(fileName, handle, subPath);
+                            if (found) {
+                                return found;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error searching for file ${fileName}:`, error);
+                }
+                return null;
+            }
+
+            async handleFolderSelect() {
+                try {
+                    if (!('showDirectoryPicker' in window)) {
+                        throw new Error('showDirectoryPicker is not available in this browser');
+                    }
+                    
+                    this.folderHandle = await window.showDirectoryPicker();
+                    this.rootFolderHandle = this.folderHandle; // Store the root folder handle
+                    
+                    // Debug: Show the selected folder name
+                    const selectedFolderName = this.folderHandle.name || 'Unknown';
+                    console.log(`Selected root folder: ${selectedFolderName}`);
+                    
+                    this.showStatus(`Scanning folder "${selectedFolderName}" for photos...`, 'processing');
+                    this.showProgress(true);
+                    
+                    const files = await this.scanFolder(this.folderHandle);
+                    this.processFiles(files);
+                    
+                    this.showStatus(`Found ${files.length} photos in folder`, 'success');
+                    this.showProgress(false);
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        this.showStatus(`Error selecting folder: ${error.message}`, 'error');
+                    }
+                    this.showProgress(false);
+                }
+            }
+
+            async scanFolder(directoryHandle, files = []) {
+                for await (const [name, handle] of directoryHandle.entries()) {
+                    if (handle.kind === 'file') {
+                        const extension = name.toLowerCase().split('.').pop();
+                        if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', '3gp', 'flv', 'wmv'].includes(extension)) {
+                            try {
+                                const file = await handle.getFile();
+                                files.push(file);
+                            } catch (error) {
+                                console.error(`Error reading file ${name}:`, error);
+                            }
+                        }
+                    } else if (handle.kind === 'directory') {
+                        // Skip "Organized photo" folder to avoid counting already organized photos
+                        if (name !== 'Organized photo') {
+                            // Recursively scan subdirectories
+                            await this.scanFolder(handle, files);
+                        }
+                    }
+                }
+                return files;
+            }
+
+            async scanFolderForZip(directoryHandle, relativePath = '') {
+                const allFiles = [];
+                
+                for await (const [name, handle] of directoryHandle.entries()) {
+                    if (handle.kind === 'file') {
+                        try {
+                            const file = await handle.getFile();
+                            const filePath = relativePath ? `${relativePath}/${name}` : name;
+                            allFiles.push({
+                                file: file,
+                                relativePath: filePath
+                            });
+                        } catch (error) {
+                            console.error(`Error reading file ${name}:`, error);
+                        }
+                    } else if (handle.kind === 'directory') {
+                        // Skip "Organized photo" folder to avoid backing up the organized folder we just created
+                        if (name !== 'Organized photo') {
+                            const subPath = relativePath ? `${relativePath}/${name}` : name;
+                            const subFiles = await this.scanFolderForZip(handle, subPath);
+                            allFiles.push(...subFiles);
+                        }
+                    }
+                }
+                
+                return allFiles;
+            }
+
+
+            processFiles(files) {
+                try {
+                    // Security validation
+                    if (!this.validateFileCount(files)) {
+                        this.showSecurityError(`Too many files selected. Maximum allowed: ${this.MAX_FILE_COUNT}`);
+                        return;
+                    }
+
+                    if (!this.validateTotalSize(files)) {
+                        this.showSecurityError(`Total file size too large. Maximum allowed: ${(this.MAX_TOTAL_SIZE / 1024 / 1024 / 1024).toFixed(1)}GB`);
+                        return;
+                    }
+
+                    // Filter and validate photo files
+                    const photoFiles = files.filter(file => {
+                        // Validate file type
+                        if (!this.validateFileType(file)) {
+                            console.warn(`Skipping non-photo file: ${file.name}`);
+                            return false;
+                        }
+
+                        // Validate file size
+                        if (!this.validateFileSize(file)) {
+                            console.warn(`Skipping oversized file: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+                            return false;
+                        }
+
+                        // Sanitize file name
+                        const sanitizedName = this.sanitizeFileName(file.name);
+                        if (sanitizedName !== file.name) {
+                            console.warn(`File name sanitized: ${file.name} → ${sanitizedName}`);
+                        }
+
+                        return true;
+                    });
+
+                            if (photoFiles.length === 0) {
+                                this.showSecurityError('No valid media files found. Please select image or video files (JPG, PNG, MP4, MOV, etc.)');
+                                return;
+                            }
+
+                    this.selectedFiles = photoFiles;
+                    this.fileCount.textContent = `${photoFiles.length} media files found (${files.length - photoFiles.length} files skipped)`;
+                    this.fileInfo.style.display = 'block';
+                    this.organizeBtn.disabled = photoFiles.length === 0;
+                    this.clearBtn.disabled = photoFiles.length === 0;
+                    this.testGPSBtn.disabled = photoFiles.length === 0;
+
+                            // Show security info
+                            if (files.length > photoFiles.length) {
+                                this.showStatus(`Processed ${photoFiles.length} valid media files (${files.length - photoFiles.length} files skipped for security)`, 'success');
+                            }
+
+                } catch (error) {
+                    this.showSecurityError(`Error processing files: ${error.message}`);
+                    console.error('Error in processFiles:', error);
+                }
+            }
+
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            async organizePhotos() {
+                if (this.selectedFiles.length === 0) return;
+
+                // Security validation before starting
+                const method = this.getOrganizationMethod();
+                const action = method === 'move' ? 'move photos from their original locations' : 'copy photos to organized folders';
+                
+                if (!this.confirmDestructiveAction(action)) {
+                    this.showStatus('Operation cancelled by user', 'processing');
+                    return;
+                }
+
+                // Additional validation for move operations
+                if (method === 'move') {
+                    if (!this.confirmDestructiveAction('permanently delete original photos after copying')) {
+                        this.showStatus('Move operation cancelled by user', 'processing');
+                        return;
+                    }
+                }
+
+                        this.showStatus('Starting media organization...', 'processing');
+                this.showProgress(true);
+                this.organizeBtn.disabled = true;
+
+                    try {
+                        this.organizedData = {};
+                        this.duplicateCount = 0;
+                        this.unidentifiedCount = 0;
+                        this.locationCount = 0; // Track locations found
+                        this.duplicateFiles.clear(); // Clear previous duplicates
+                        this.processedFiles.clear(); // Clear previous processed files
+                        let processedCount = 0;
+                        let organizedFolderHandle = null;
+                        
+                        // Initialize logging
+                        const logEntries = [];
+                        const startTime = new Date();
+                        const method = this.getOrganizationMethod();
+                        const zipEnabled = this.isZipEnabled();
+                        const actionText = method === 'move' ? 'moved from original location' : 'copied (original files preserved)';
+                        
+                        // No longer need to store files for deferred deletion
+                        
+                        logEntries.push(`=== photoSorter Organization Log ===`);
+                        logEntries.push(`Start Time: ${startTime.toLocaleString()}`);
+                        logEntries.push(`Organization Method: ${method.toUpperCase()}`);
+                                logEntries.push(`Total Media Files to Process: ${this.selectedFiles.length}`);
+                        logEntries.push(`=====================================`);
+                        logEntries.push(``);
+
+                    // Create "Organized photo" folder in the root directory
+                    if (this.rootFolderHandle) {
+                        try {
+                            // Get the root folder name for debugging
+                            const rootFolderName = this.rootFolderHandle.name || 'Unknown';
+                            console.log(`Creating "Organized photo" folder in root directory: ${rootFolderName}`);
+                            
+                            organizedFolderHandle = await this.rootFolderHandle.getDirectoryHandle('Organized photo', { create: true });
+                            this.showStatus(`Created "Organized photo" folder in root directory: ${rootFolderName}`, 'processing');
+                        } catch (error) {
+                            this.showStatus(`Error creating organized folder: ${error.message}`, 'error');
+                            return;
+                        }
+                    }
+
+                    // Create folder backup ZIP BEFORE any organization happens
+                    if (zipEnabled) {
+                        try {
+                            this.showStatus('Creating folder backup ZIP...', 'processing');
+                            logEntries.push(``);
+                            logEntries.push(`=== FOLDER BACKUP ZIP CREATION ===`);
+                            
+                            // Create real ZIP file using JSZip
+                            const zip = new JSZip();
+                            const zipFileName = `folder-backup-${new Date().toISOString().split('T')[0]}.zip`;
+                            
+                            // Add all files from the selected folder to the ZIP archive (BEFORE organization)
+                            const allFiles = await this.scanFolderForZip(this.rootFolderHandle);
+                            
+                            for (const fileInfo of allFiles) {
+                                try {
+                                    // Read the file content
+                                    const fileContent = await fileInfo.file.arrayBuffer();
+                                    
+                                    // Create the original folder structure in the ZIP
+                                    const zipPath = fileInfo.relativePath;
+                                    
+                                    // Add file to ZIP
+                                    zip.file(zipPath, fileContent);
+                                    
+                                    logEntries.push(`📦 Added to backup: ${fileInfo.relativePath}`);
+                                } catch (fileError) {
+                                    console.error(`Error adding ${fileInfo.relativePath} to ZIP:`, fileError);
+                                    logEntries.push(`⚠️  Failed to add to backup: ${fileInfo.relativePath}`);
+                                }
+                            }
+                            
+                            // Generate the ZIP file
+                            this.showStatus('Generating backup ZIP file...', 'processing');
+                            const zipBlob = await zip.generateAsync({
+                                type: 'blob',
+                                compression: 'DEFLATE',
+                                compressionOptions: {
+                                    level: 6
+                                }
+                            });
+                            
+                            // Save the ZIP file to the organized folder
+                            const zipFileHandle = await organizedFolderHandle.getFileHandle(zipFileName, { create: true });
+                            const writable = await zipFileHandle.createWritable();
+                            await writable.write(zipBlob);
+                            await writable.close();
+                            
+                            logEntries.push(`✅ Folder Backup ZIP Created: ${zipFileName}`);
+                            logEntries.push(`📦 Backup contains ${allFiles.length} files from original folder`);
+                            logEntries.push(`📊 ZIP Size: ${(zipBlob.size / 1024 / 1024).toFixed(2)} MB`);
+                            logEntries.push(`🕒 Backup created BEFORE organization - contains original folder structure`);
+                            
+                        } catch (zipError) {
+                            console.error('Error creating folder backup ZIP:', zipError);
+                            logEntries.push(`❌ Folder Backup ZIP Creation Failed: ${zipError.message}`);
+                            logEntries.push(`⚠️  Continuing with organization without backup`);
+                        }
+                    }
+
+                            // Process each media file
+                            for (const file of this.selectedFiles) {
+                        try {
+                            const dateInfo = await this.getPhotoDate(file);
+                            
+                                // Check for unidentified year
+                                if (!dateInfo || dateInfo.year === 'Unknown') {
+                                    this.unidentifiedCount++;
+                                    dateInfo = { year: 'Unknown', month: 0, monthName: 'Unknown' };
+                                    logEntries.push(`❓ UNIDENTIFIED: ${file.name} (could not determine date)`);
+                                }
+                            
+                            const year = dateInfo.year;
+                            const month = dateInfo.month;
+                            const monthName = dateInfo.monthName;
+                            
+                            // Get location information
+                            let locationInfo = null;
+                            try {
+                                console.log(`Processing location for file: ${file.name}`);
+                                let locationData = await this.getPhotoLocation(file);
+                                console.log(`Location data for ${file.name}:`, locationData);
+                                
+                                // If no GPS found, try the alternative method
+                                if (!locationData.hasLocation) {
+                                    console.log(`Trying alternative GPS extraction for ${file.name}...`);
+                                    locationData = await this.getPhotoLocationAlternative(file);
+                                    console.log(`Alternative location data for ${file.name}:`, locationData);
+                                }
+                                
+                                // If still no GPS found, try the simple method
+                                if (!locationData.hasLocation) {
+                                    console.log(`Trying simple GPS extraction for ${file.name}...`);
+                                    locationData = await this.getPhotoLocationSimple(file);
+                                    console.log(`Simple location data for ${file.name}:`, locationData);
+                                }
+                                
+                                // If still no GPS found, try the comprehensive method
+                                if (!locationData.hasLocation) {
+                                    console.log(`Trying comprehensive GPS extraction for ${file.name}...`);
+                                    locationData = await this.getPhotoLocationComprehensive(file);
+                                    console.log(`Comprehensive location data for ${file.name}:`, locationData);
+                                }
+                                
+                                if (locationData.hasLocation) {
+                                    console.log(`GPS coordinates found: ${locationData.latitude}, ${locationData.longitude}`);
+                                    locationInfo = await this.getLocationName(locationData.latitude, locationData.longitude);
+                                    this.locationCount++;
+                                    logEntries.push(`📍 LOCATION: ${file.name} → ${locationInfo.name}`);
+                                } else {
+                                    console.log(`No GPS data found for ${file.name}`);
+                                    logEntries.push(`❓ NO LOCATION: ${file.name} (no GPS data found)`);
+                                }
+                            } catch (locationError) {
+                                console.error('Error getting location for', file.name, locationError);
+                                logEntries.push(`❌ LOCATION ERROR: ${file.name} (${locationError.message})`);
+                            }
+                            
+                            // Use location name or fallback to "Unknown Location"
+                            const locationName = locationInfo ? locationInfo.name : 'Unknown Location';
+                            
+                            // Initialize location/year/month structure
+                            if (!this.organizedData[locationName]) {
+                                this.organizedData[locationName] = {};
+                            }
+                            if (!this.organizedData[locationName][year]) {
+                                this.organizedData[locationName][year] = {};
+                            }
+                            if (!this.organizedData[locationName][year][month]) {
+                                this.organizedData[locationName][year][month] = {
+                                    monthName: monthName,
+                                    photos: []
+                                };
+                                
+                                // Create location folder if we have folder access
+                                if (organizedFolderHandle) {
+                                    try {
+                                        await organizedFolderHandle.getDirectoryHandle(locationName, { create: true });
+                                        this.showStatus(`Created location folder: ${locationName}`, 'processing');
+                                    } catch (error) {
+                                        console.error(`Error creating location folder ${locationName}:`, error);
+                                    }
+                                }
+                                
+                                // Create year folder if we have folder access (except for Unknown)
+                                if (organizedFolderHandle && year !== 'Unknown') {
+                                    try {
+                                        const locationFolderHandle = await organizedFolderHandle.getDirectoryHandle(locationName);
+                                        await locationFolderHandle.getDirectoryHandle(year, { create: true });
+                                        this.showStatus(`Created year folder: ${locationName}/${year}`, 'processing');
+                                    } catch (error) {
+                                        console.error(`Error creating year folder ${locationName}/${year}:`, error);
+                                    }
+                                }
+                                
+                                // Create month folder if we have folder access (except for Unknown)
+                                if (organizedFolderHandle && year !== 'Unknown') {
+                                    try {
+                                        const locationFolderHandle = await organizedFolderHandle.getDirectoryHandle(locationName);
+                                        const yearFolderHandle = await locationFolderHandle.getDirectoryHandle(year);
+                                        await yearFolderHandle.getDirectoryHandle(`${month.toString().padStart(2, '0')}-${monthName}`, { create: true });
+                                        this.showStatus(`Created month folder: ${locationName}/${year}/${month.toString().padStart(2, '0')}-${monthName}`, 'processing');
+                                    } catch (error) {
+                                        console.error(`Error creating month folder ${locationName}/${year}/${month}:`, error);
+                                    }
+                                }
+                            }
+                            
+                                // Check for duplicate file names and rename them
+                                let finalFileName = file.name;
+                                let duplicateSuffix = '';
+                                
+                                if (this.processedFiles.has(file.name)) {
+                                    // This is a duplicate - increment count and add suffix
+                                    const currentCount = this.processedFiles.get(file.name);
+                                    this.processedFiles.set(file.name, currentCount + 1);
+                                    duplicateSuffix = `_${currentCount}`;
+                                    finalFileName = this.addSuffixToFileName(file.name, duplicateSuffix);
+                                    
+                                    // Only count actual duplicates, not the original
+                                    this.duplicateCount++;
+                                    this.showStatus(`Duplicate found: ${file.name} → renamed to ${finalFileName}`, 'processing');
+                                    logEntries.push(`⚠️  DUPLICATE: ${file.name} → renamed to ${finalFileName}`);
+                                    
+                                    // Track duplicate files for management
+                                    if (!this.duplicateFiles.has(file.name)) {
+                                        this.duplicateFiles.set(file.name, []);
+                                        
+                                        // Add the original file to the duplicate list when we first encounter a duplicate
+                                        // We need to find the original file from selectedFiles
+                                        const originalFile = this.selectedFiles.find(f => f.name === file.name);
+                                        if (originalFile) {
+                                            this.duplicateFiles.get(file.name).push({
+                                                file: originalFile, // Store the actual File object
+                                                originalName: originalFile.name,
+                                                renamedName: originalFile.name,
+                                                duplicateSuffix: '',
+                                                isOriginal: true
+                                            });
+                                        }
+                                    }
+                                    
+                                    // Add the current duplicate file
+                                    this.duplicateFiles.get(file.name).push({
+                                        file: file, // Store the actual File object
+                                        originalName: file.name,
+                                        renamedName: finalFileName,
+                                        duplicateSuffix: duplicateSuffix,
+                                        isOriginal: false
+                                    });
+                                } else {
+                                    // First occurrence of this file name
+                                    this.processedFiles.set(file.name, 1);
+                                    
+                                    // Don't track single files in duplicateFiles - only track when duplicates exist
+                                }
+                            
+                                    // Copy or move file to organized folder if we have folder access (except for Unknown)
+                                    if (organizedFolderHandle && year !== 'Unknown') {
+                                        try {
+                                            const locationFolderHandle = await organizedFolderHandle.getDirectoryHandle(locationName);
+                                            const yearFolderHandle = await locationFolderHandle.getDirectoryHandle(year);
+                                            const monthFolderHandle = await yearFolderHandle.getDirectoryHandle(`${month.toString().padStart(2, '0')}-${monthName}`);
+                                            const fileHandle = await monthFolderHandle.getFileHandle(finalFileName, { create: true });
+                                            const writable = await fileHandle.createWritable();
+                                            await writable.write(file);
+                                            await writable.close();
+                                            
+                                            // If move is selected, delete the original file immediately
+                                            if (method === 'move') {
+                                                try {
+                                                    await this.deleteOriginalFile(file, this.rootFolderHandle);
+                                                    logEntries.push(`✅ ${method.toUpperCase()}: ${file.name} → ${locationName}/${year}/${month.toString().padStart(2, '0')}-${monthName}/${finalFileName} (original deleted)`);
+                                                } catch (deleteError) {
+                                                    console.error(`Error deleting original file ${file.name}:`, deleteError);
+                                                    logEntries.push(`⚠️  PARTIAL MOVE: ${file.name} → ${locationName}/${year}/${month.toString().padStart(2, '0')}-${monthName}/ (copy successful, but original deletion failed)`);
+                                                }
+                                            } else {
+                                                logEntries.push(`✅ ${method.toUpperCase()}: ${file.name} → ${locationName}/${year}/${month.toString().padStart(2, '0')}-${monthName}/${finalFileName}`);
+                                            }
+                                            
+                                            const action = method === 'move' ? 'Moved' : 'Copied';
+                                            this.showStatus(`${action} ${file.name} to ${locationName}/${year}/${month.toString().padStart(2, '0')}-${monthName}/${finalFileName}`, 'processing');
+                                        } catch (error) {
+                                            console.error(`Error processing file ${file.name}:`, error);
+                                        }
+                                    }
+                            
+                            this.organizedData[locationName][year][month].photos.push({
+                                name: finalFileName,
+                                originalName: file.name,
+                                size: file.size,
+                                lastModified: file.lastModified,
+                                isDuplicate: duplicateSuffix !== '',
+                                duplicateSuffix: duplicateSuffix,
+                                location: locationInfo ? {
+                                    name: locationInfo.name,
+                                    fullAddress: locationInfo.fullAddress,
+                                    city: locationInfo.city,
+                                    state: locationInfo.state,
+                                    country: locationInfo.country
+                                } : null
+                            });
+
+                            processedCount++;
+                            const progress = (processedCount / this.selectedFiles.length) * 100;
+                            this.updateProgress(progress);
+
+                            } catch (error) {
+                                console.error(`Error processing ${file.name}:`, error);
+                                this.unidentifiedCount++;
+                                logEntries.push(`❌ ERROR: ${file.name} (${error.message})`);
+                            }
+                    }
+
+                    // ZIP backup was already created before organization
+                    
+                    const action = method === 'move' ? 'moved' : 'copied';
+                    const endTime = new Date();
+                    const duration = Math.round((endTime - startTime) / 1000);
+                    
+                    // Add summary to log
+                    logEntries.push(``);
+                    logEntries.push(`=====================================`);
+                    logEntries.push(`=== ORGANIZATION SUMMARY ===`);
+                    logEntries.push(`End Time: ${endTime.toLocaleString()}`);
+                    logEntries.push(`Duration: ${duration} seconds`);
+                            logEntries.push(`Total Media Files Processed: ${processedCount}`);
+                    logEntries.push(`Successfully ${action.toUpperCase()}: ${processedCount - this.duplicateCount - this.unidentifiedCount}`);
+                    logEntries.push(`Duplicates Found: ${this.duplicateCount}`);
+                    logEntries.push(`Unidentified Media: ${this.unidentifiedCount}`);
+                    logEntries.push(`Locations Found: ${this.locationCount}`);
+                    logEntries.push(`Organization Method: ${method.toUpperCase()}`);
+                    if (zipEnabled) {
+                        logEntries.push(`Folder Backup ZIP: Created`);
+                    }
+                    logEntries.push(`=====================================`);
+                    
+                    // Create log file
+                    if (organizedFolderHandle) {
+                        try {
+                            const logContent = logEntries.join('\n');
+                            const logFileHandle = await organizedFolderHandle.getFileHandle('photoSorter-log.txt', { create: true });
+                            const writable = await logFileHandle.createWritable();
+                            await writable.write(logContent);
+                            await writable.close();
+                            this.showStatus(`Log file created: photoSorter-log.txt`, 'processing');
+                        } catch (logError) {
+                            console.error('Error creating log file:', logError);
+                        }
+                    }
+                    
+                    let message = organizedFolderHandle ? 
+                        `Successfully organized ${processedCount} media files into "Organized photo" folder! Files were ${action}. Log file created.` :
+                        `Successfully organized ${processedCount} media files by year! Files were ${action}.`;
+                    
+                    if (zipEnabled) {
+                        message += ` Complete folder backup ZIP created before organization.`;
+                    }
+                    
+                    this.showStatus(message, 'success');
+                    this.showResults();
+
+                } catch (error) {
+                    // Generic error message for security (don't expose system details)
+                    console.error('Organization error:', error);
+                    this.showStatus('An error occurred during media organization. Please try again.', 'error');
+                } finally {
+                    this.organizeBtn.disabled = false;
+                    this.showProgress(false);
+                }
+            }
+
+                    getPhotoDate(file) {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                try {
+                                    const arrayBuffer = e.target.result;
+                                    const dataView = new DataView(arrayBuffer);
+                                    
+                                    // Look for EXIF data in JPEG files
+                                    if (dataView.getUint16(0) === 0xFFD8) { // JPEG marker
+                                        let offset = 2;
+                                        while (offset < dataView.byteLength) {
+                                            const marker = dataView.getUint16(offset);
+                                            if (marker === 0xFFE1) { // EXIF marker
+                                                const exifLength = dataView.getUint16(offset + 2);
+                                                const exifData = new DataView(arrayBuffer, offset + 4, exifLength - 2);
+                                                
+                                                // Look for DateTime tag (0x0132)
+                                                if (exifData.getUint16(0) === 0x4949) { // Little endian
+                                                    const ifdOffset = exifData.getUint32(4);
+                                                    const numEntries = exifData.getUint16(ifdOffset);
+                                                    
+                                                    for (let i = 0; i < numEntries; i++) {
+                                                        const entryOffset = ifdOffset + 2 + (i * 12);
+                                                        const tag = exifData.getUint16(entryOffset);
+                                                        
+                                                        if (tag === 0x0132) { // DateTime tag
+                                                            const valueOffset = exifData.getUint32(entryOffset + 8);
+                                                            const dateString = new TextDecoder().decode(
+                                                                new Uint8Array(arrayBuffer, offset + 4 + valueOffset, 19)
+                                                            );
+                                                            const date = new Date(dateString);
+                                                            if (!isNaN(date.getTime())) {
+                                                                const year = date.getFullYear();
+                                                                const month = date.getMonth() + 1; // getMonth() returns 0-11
+                                                                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                                                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                                                resolve({
+                                                                    year: year.toString(),
+                                                                    month: month,
+                                                                    monthName: monthNames[month - 1],
+                                                                    fullDate: date
+                                                                });
+                                                                return;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                            offset += 2 + dataView.getUint16(offset + 2);
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.log('Error reading EXIF data:', err);
+                                }
+                                
+                                // Fallback to file modification date
+                                const date = new Date(file.lastModified);
+                                const year = date.getFullYear();
+                                const month = date.getMonth() + 1;
+                                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                
+                                if (year && year > 1900 && year < 2100) {
+                                    resolve({
+                                        year: year.toString(),
+                                        month: month,
+                                        monthName: monthNames[month - 1],
+                                        fullDate: date
+                                    });
+                                } else {
+                                    resolve({
+                                        year: 'Unknown',
+                                        month: 0,
+                                        monthName: 'Unknown',
+                                        fullDate: null
+                                    });
+                                }
+                            };
+                            reader.readAsArrayBuffer(file);
+                        });
+                    }
+
+                    getPhotoLocation(file) {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                try {
+                                    const arrayBuffer = e.target.result;
+                                    const dataView = new DataView(arrayBuffer);
+                                    
+                                    console.log(`Analyzing ${file.name} for GPS data...`);
+                                    
+                                    // Look for EXIF data in JPEG files
+                                    if (dataView.getUint16(0) === 0xFFD8) { // JPEG marker
+                                        console.log(`JPEG marker found for ${file.name}`);
+                                        let offset = 2;
+                                        while (offset < dataView.byteLength) {
+                                            const marker = dataView.getUint16(offset);
+                                            if (marker === 0xFFE1) { // EXIF marker
+                                                console.log(`EXIF marker found at offset ${offset} for ${file.name}`);
+                                                const exifLength = dataView.getUint16(offset + 2);
+                                                const exifData = new DataView(arrayBuffer, offset + 4, exifLength - 2);
+                                                
+                                                // Check for TIFF header
+                                                if (exifData.getUint16(0) === 0x4949) { // Little endian
+                                                    console.log(`TIFF header found for ${file.name}`);
+                                                    const ifdOffset = exifData.getUint32(4);
+                                                    const numEntries = exifData.getUint16(ifdOffset);
+                                                    
+                                                    console.log(`IFD offset: ${ifdOffset}, entries: ${numEntries} for ${file.name}`);
+                                                    
+                                                    let gpsIFDOffset = null;
+                                                    
+                                                    // First, find the GPS IFD offset
+                                                    for (let i = 0; i < numEntries; i++) {
+                                                        const entryOffset = ifdOffset + 2 + (i * 12);
+                                                        const tag = exifData.getUint16(entryOffset);
+                                                        const type = exifData.getUint16(entryOffset + 2);
+                                                        const count = exifData.getUint32(entryOffset + 4);
+                                                        const valueOffset = exifData.getUint32(entryOffset + 8);
+                                                        
+                                                        console.log(`Tag ${tag.toString(16)} (${tag}), type: ${type}, count: ${count} for ${file.name}`);
+                                                        
+                                                        if (tag === 0x8825) { // GPS IFD tag
+                                                            gpsIFDOffset = valueOffset;
+                                                            console.log(`GPS IFD found at offset ${valueOffset} for ${file.name}`);
+                                                            break;
+                                                        }
+                                                    }
+                                                    
+                                                    if (gpsIFDOffset) {
+                                                        console.log(`Reading GPS IFD for ${file.name}`);
+                                                        // Now read GPS data from GPS IFD
+                                                        const gpsNumEntries = exifData.getUint16(gpsIFDOffset);
+                                                        console.log(`GPS entries: ${gpsNumEntries} for ${file.name}`);
+                                                        
+                                                        let gpsLatitude = null;
+                                                        let gpsLongitude = null;
+                                                        let gpsLatitudeRef = null;
+                                                        let gpsLongitudeRef = null;
+                                                        
+                                                        for (let i = 0; i < gpsNumEntries; i++) {
+                                                            const entryOffset = gpsIFDOffset + 2 + (i * 12);
+                                                            const tag = exifData.getUint16(entryOffset);
+                                                            const type = exifData.getUint16(entryOffset + 2);
+                                                            const count = exifData.getUint32(entryOffset + 4);
+                                                            const valueOffset = exifData.getUint32(entryOffset + 8);
+                                                            
+                                                            console.log(`GPS Tag ${tag.toString(16)} (${tag}), type: ${type}, count: ${count} for ${file.name}`);
+                                                            
+                                                            if (tag === 0x0002) { // GPSLatitude
+                                                                gpsLatitude = this.extractGPSValue(exifData, valueOffset, type, count);
+                                                                console.log(`GPS Latitude: ${gpsLatitude} for ${file.name}`);
+                                                            } else if (tag === 0x0004) { // GPSLongitude
+                                                                gpsLongitude = this.extractGPSValue(exifData, valueOffset, type, count);
+                                                                console.log(`GPS Longitude: ${gpsLongitude} for ${file.name}`);
+                                                            } else if (tag === 0x0001) { // GPSLatitudeRef
+                                                                gpsLatitudeRef = String.fromCharCode(exifData.getUint8(valueOffset));
+                                                                console.log(`GPS Latitude Ref: ${gpsLatitudeRef} for ${file.name}`);
+                                                            } else if (tag === 0x0003) { // GPSLongitudeRef
+                                                                gpsLongitudeRef = String.fromCharCode(exifData.getUint8(valueOffset));
+                                                                console.log(`GPS Longitude Ref: ${gpsLongitudeRef} for ${file.name}`);
+                                                            }
+                                                        }
+                                                        
+                                                        if (gpsLatitude && gpsLongitude) {
+                                                            // Convert to decimal degrees
+                                                            let lat = gpsLatitude[0] + gpsLatitude[1]/60 + gpsLatitude[2]/3600;
+                                                            let lng = gpsLongitude[0] + gpsLongitude[1]/60 + gpsLongitude[2]/3600;
+                                                            
+                                                            if (gpsLatitudeRef === 'S') lat = -lat;
+                                                            if (gpsLongitudeRef === 'W') lng = -lng;
+                                                            
+                                                            console.log(`✅ GPS found for ${file.name}: ${lat}, ${lng}`);
+                                                            resolve({
+                                                                latitude: lat,
+                                                                longitude: lng,
+                                                                hasLocation: true
+                                                            });
+                                                            return;
+                                                        } else {
+                                                            console.log(`❌ GPS coordinates not found for ${file.name}. Lat: ${gpsLatitude}, Lng: ${gpsLongitude}`);
+                                                        }
+                                                    } else {
+                                                        console.log(`❌ GPS IFD not found for ${file.name}`);
+                                                    }
+                                                } else {
+                                                    console.log(`❌ TIFF header not found for ${file.name}`);
+                                                }
+                                                break;
+                                            }
+                                            offset += 2 + dataView.getUint16(offset + 2);
+                                        }
+                                    } else {
+                                        console.log(`❌ Not a JPEG file: ${file.name}`);
+                                    }
+                                } catch (err) {
+                                    console.log('Error reading GPS data:', err);
+                                }
+                                
+                                // No GPS data found
+                                console.log(`❌ No GPS data found for ${file.name}`);
+                                resolve({
+                                    latitude: null,
+                                    longitude: null,
+                                    hasLocation: false
+                                });
+                            };
+                            reader.readAsArrayBuffer(file);
+                        });
+                    }
+
+                    // Comprehensive GPS extraction method - handles all EXIF formats
+                    getPhotoLocationComprehensive(file) {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                try {
+                                    const arrayBuffer = e.target.result;
+                                    const dataView = new DataView(arrayBuffer);
+                                    
+                                    console.log(`Comprehensive GPS extraction for ${file.name}...`);
+                                    
+                                    // Look for EXIF data in JPEG files
+                                    if (dataView.getUint16(0) === 0xFFD8) { // JPEG marker
+                                        let offset = 2;
+                                        while (offset < dataView.byteLength) {
+                                            const marker = dataView.getUint16(offset);
+                                            if (marker === 0xFFE1) { // EXIF marker
+                                                const exifLength = dataView.getUint16(offset + 2);
+                                                const exifData = new DataView(arrayBuffer, offset + 4, exifLength - 2);
+                                                
+                                                console.log(`EXIF data length: ${exifLength} for ${file.name}`);
+                                                
+                                                // Check for TIFF header and determine byte order
+                                                const tiffHeader = exifData.getUint16(0);
+                                                let isLittleEndian = false;
+                                                
+                                                if (tiffHeader === 0x4949) { // Little endian
+                                                    isLittleEndian = true;
+                                                    console.log(`Little endian TIFF header found for ${file.name}`);
+                                                } else if (tiffHeader === 0x4D4D) { // Big endian
+                                                    isLittleEndian = false;
+                                                    console.log(`Big endian TIFF header found for ${file.name}`);
+                                                } else {
+                                                    console.log(`Unknown TIFF header: ${tiffHeader.toString(16)} for ${file.name}`);
+                                                    break;
+                                                }
+                                                
+                                                // Read IFD offset
+                                                const ifdOffset = isLittleEndian ? 
+                                                    exifData.getUint32(4) : 
+                                                    this.swap32(exifData.getUint32(4));
+                                                
+                                                console.log(`IFD offset: ${ifdOffset} for ${file.name}`);
+                                                
+                                                // Read number of entries
+                                                const numEntries = isLittleEndian ? 
+                                                    exifData.getUint16(ifdOffset) : 
+                                                    this.swap16(exifData.getUint16(ifdOffset));
+                                                
+                                                console.log(`Number of IFD entries: ${numEntries} for ${file.name}`);
+                                                
+                                                // Search for GPS IFD
+                                                let gpsIFDOffset = null;
+                                                for (let i = 0; i < numEntries; i++) {
+                                                    const entryOffset = ifdOffset + 2 + (i * 12);
+                                                    const tag = isLittleEndian ? 
+                                                        exifData.getUint16(entryOffset) : 
+                                                        this.swap16(exifData.getUint16(entryOffset));
+                                                    
+                                                    console.log(`IFD Tag ${tag.toString(16)} (${tag}) for ${file.name}`);
+                                                    
+                                                    if (tag === 0x8825) { // GPS IFD tag
+                                                        gpsIFDOffset = isLittleEndian ? 
+                                                            exifData.getUint32(entryOffset + 8) : 
+                                                            this.swap32(exifData.getUint32(entryOffset + 8));
+                                                        console.log(`GPS IFD found at offset ${gpsIFDOffset} for ${file.name}`);
+                                                        break;
+                                                    }
+                                                }
+                                                
+                                                if (gpsIFDOffset) {
+                                                    // Read GPS IFD
+                                                    const gpsNumEntries = isLittleEndian ? 
+                                                        exifData.getUint16(gpsIFDOffset) : 
+                                                        this.swap16(exifData.getUint16(gpsIFDOffset));
+                                                    
+                                                    console.log(`GPS IFD entries: ${gpsNumEntries} for ${file.name}`);
+                                                    
+                                                    let gpsLatitude = null;
+                                                    let gpsLongitude = null;
+                                                    let gpsLatitudeRef = null;
+                                                    let gpsLongitudeRef = null;
+                                                    
+                                                    for (let j = 0; j < gpsNumEntries; j++) {
+                                                        const entryOffset = gpsIFDOffset + 2 + (j * 12);
+                                                        const gpsTag = isLittleEndian ? 
+                                                            exifData.getUint16(entryOffset) : 
+                                                            this.swap16(exifData.getUint16(entryOffset));
+                                                        const gpsType = isLittleEndian ? 
+                                                            exifData.getUint16(entryOffset + 2) : 
+                                                            this.swap16(exifData.getUint16(entryOffset + 2));
+                                                        const gpsCount = isLittleEndian ? 
+                                                            exifData.getUint32(entryOffset + 4) : 
+                                                            this.swap32(exifData.getUint32(entryOffset + 4));
+                                                        const gpsValueOffset = isLittleEndian ? 
+                                                            exifData.getUint32(entryOffset + 8) : 
+                                                            this.swap32(exifData.getUint32(entryOffset + 8));
+                                                        
+                                                        console.log(`GPS Tag ${gpsTag.toString(16)} (${gpsTag}), type: ${gpsType}, count: ${gpsCount} for ${file.name}`);
+                                                        
+                                                        if (gpsTag === 0x0002) { // GPSLatitude
+                                                            gpsLatitude = this.extractGPSValueComprehensive(exifData, gpsValueOffset, gpsType, gpsCount, isLittleEndian);
+                                                            console.log(`GPS Latitude: ${gpsLatitude} for ${file.name}`);
+                                                        } else if (gpsTag === 0x0004) { // GPSLongitude
+                                                            gpsLongitude = this.extractGPSValueComprehensive(exifData, gpsValueOffset, gpsType, gpsCount, isLittleEndian);
+                                                            console.log(`GPS Longitude: ${gpsLongitude} for ${file.name}`);
+                                                        } else if (gpsTag === 0x0001) { // GPSLatitudeRef
+                                                            gpsLatitudeRef = String.fromCharCode(exifData.getUint8(gpsValueOffset));
+                                                            console.log(`GPS Latitude Ref: ${gpsLatitudeRef} for ${file.name}`);
+                                                        } else if (gpsTag === 0x0003) { // GPSLongitudeRef
+                                                            gpsLongitudeRef = String.fromCharCode(exifData.getUint8(gpsValueOffset));
+                                                            console.log(`GPS Longitude Ref: ${gpsLongitudeRef} for ${file.name}`);
+                                                        }
+                                                    }
+                                                    
+                                                    if (gpsLatitude && gpsLongitude) {
+                                                        // Convert to decimal degrees
+                                                        let lat = gpsLatitude[0] + gpsLatitude[1]/60 + gpsLatitude[2]/3600;
+                                                        let lng = gpsLongitude[0] + gpsLongitude[1]/60 + gpsLongitude[2]/3600;
+                                                        
+                                                        if (gpsLatitudeRef === 'S') lat = -lat;
+                                                        if (gpsLongitudeRef === 'W') lng = -lng;
+                                                        
+                                                        console.log(`✅ GPS found (comprehensive method) for ${file.name}: ${lat}, ${lng}`);
+                                                        resolve({
+                                                            latitude: lat,
+                                                            longitude: lng,
+                                                            hasLocation: true
+                                                        });
+                                                        return;
+                                                    } else {
+                                                        console.log(`❌ GPS coordinates not found for ${file.name}. Lat: ${gpsLatitude}, Lng: ${gpsLongitude}`);
+                                                    }
+                                                } else {
+                                                    console.log(`❌ GPS IFD not found for ${file.name}`);
+                                                }
+                                                break;
+                                            }
+                                            offset += 2 + dataView.getUint16(offset + 2);
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.log('Error in comprehensive GPS extraction:', err);
+                                }
+                                
+                                // No GPS data found
+                                console.log(`❌ No GPS data found (comprehensive method) for ${file.name}`);
+                                resolve({
+                                    latitude: null,
+                                    longitude: null,
+                                    hasLocation: false
+                                });
+                            };
+                            reader.readAsArrayBuffer(file);
+                        });
+                    }
+
+                    extractGPSValueComprehensive(exifData, offset, type, count, isLittleEndian) {
+                        console.log(`Comprehensive GPS extraction: type=${type}, count=${count}, offset=${offset}, littleEndian=${isLittleEndian}`);
+                        if (type === 5) { // Rational type
+                            const values = [];
+                            for (let i = 0; i < count; i++) {
+                                const numerator = isLittleEndian ? 
+                                    exifData.getUint32(offset + i * 8) : 
+                                    this.swap32(exifData.getUint32(offset + i * 8));
+                                const denominator = isLittleEndian ? 
+                                    exifData.getUint32(offset + i * 8 + 4) : 
+                                    this.swap32(exifData.getUint32(offset + i * 8 + 4));
+                                const value = denominator !== 0 ? numerator / denominator : 0;
+                                values.push(value);
+                                console.log(`GPS value ${i}: ${numerator}/${denominator} = ${value}`);
+                            }
+                            return values;
+                        }
+                        return null;
+                    }
+
+                    swap16(value) {
+                        return ((value & 0xFF) << 8) | ((value >> 8) & 0xFF);
+                    }
+
+                    swap32(value) {
+                        return ((value & 0xFF) << 24) | 
+                               (((value >> 8) & 0xFF) << 16) | 
+                               (((value >> 16) & 0xFF) << 8) | 
+                               ((value >> 24) & 0xFF);
+                    }
+
+                    // Simple GPS extraction method - try to read GPS data more directly
+                    getPhotoLocationSimple(file) {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                try {
+                                    const arrayBuffer = e.target.result;
+                                    const dataView = new DataView(arrayBuffer);
+                                    
+                                    console.log(`Simple GPS extraction for ${file.name}...`);
+                                    
+                                    // Look for EXIF data in JPEG files
+                                    if (dataView.getUint16(0) === 0xFFD8) { // JPEG marker
+                                        let offset = 2;
+                                        while (offset < dataView.byteLength) {
+                                            const marker = dataView.getUint16(offset);
+                                            if (marker === 0xFFE1) { // EXIF marker
+                                                const exifLength = dataView.getUint16(offset + 2);
+                                                const exifData = new DataView(arrayBuffer, offset + 4, exifLength - 2);
+                                                
+                                                // Try a very simple approach - just search for GPS coordinates
+                                                if (exifData.getUint16(0) === 0x4949) { // Little endian
+                                                    // Search for GPS IFD tag (0x8825) anywhere in the data
+                                                    for (let i = 0; i < exifData.byteLength - 8; i += 2) {
+                                                        const tag = exifData.getUint16(i);
+                                                        if (tag === 0x8825) { // GPS IFD tag
+                                                            const gpsOffset = exifData.getUint32(i + 8);
+                                                            console.log(`Found GPS IFD at offset ${gpsOffset} for ${file.name}`);
+                                                            
+                                                            // Try to read GPS data directly
+                                                            try {
+                                                                const gpsNumEntries = exifData.getUint16(gpsOffset);
+                                                                console.log(`GPS entries: ${gpsNumEntries} for ${file.name}`);
+                                                                
+                                                                let gpsLatitude = null;
+                                                                let gpsLongitude = null;
+                                                                let gpsLatitudeRef = null;
+                                                                let gpsLongitudeRef = null;
+                                                                
+                                                                for (let j = 0; j < gpsNumEntries; j++) {
+                                                                    const entryOffset = gpsOffset + 2 + (j * 12);
+                                                                    const gpsTag = exifData.getUint16(entryOffset);
+                                                                    const gpsType = exifData.getUint16(entryOffset + 2);
+                                                                    const gpsCount = exifData.getUint32(entryOffset + 4);
+                                                                    const gpsValueOffset = exifData.getUint32(entryOffset + 8);
+                                                                    
+                                                                    console.log(`GPS Tag ${gpsTag.toString(16)} (${gpsTag}), type: ${gpsType}, count: ${gpsCount} for ${file.name}`);
+                                                                    
+                                                                    if (gpsTag === 0x0002) { // GPSLatitude
+                                                                        gpsLatitude = this.extractGPSValueSimple(exifData, gpsValueOffset, gpsType, gpsCount);
+                                                                        console.log(`GPS Latitude: ${gpsLatitude} for ${file.name}`);
+                                                                    } else if (gpsTag === 0x0004) { // GPSLongitude
+                                                                        gpsLongitude = this.extractGPSValueSimple(exifData, gpsValueOffset, gpsType, gpsCount);
+                                                                        console.log(`GPS Longitude: ${gpsLongitude} for ${file.name}`);
+                                                                    } else if (gpsTag === 0x0001) { // GPSLatitudeRef
+                                                                        gpsLatitudeRef = String.fromCharCode(exifData.getUint8(gpsValueOffset));
+                                                                        console.log(`GPS Latitude Ref: ${gpsLatitudeRef} for ${file.name}`);
+                                                                    } else if (gpsTag === 0x0003) { // GPSLongitudeRef
+                                                                        gpsLongitudeRef = String.fromCharCode(exifData.getUint8(gpsValueOffset));
+                                                                        console.log(`GPS Longitude Ref: ${gpsLongitudeRef} for ${file.name}`);
+                                                                    }
+                                                                }
+                                                                
+                                                                if (gpsLatitude && gpsLongitude) {
+                                                                    // Convert to decimal degrees
+                                                                    let lat = gpsLatitude[0] + gpsLatitude[1]/60 + gpsLatitude[2]/3600;
+                                                                    let lng = gpsLongitude[0] + gpsLongitude[1]/60 + gpsLongitude[2]/3600;
+                                                                    
+                                                                    if (gpsLatitudeRef === 'S') lat = -lat;
+                                                                    if (gpsLongitudeRef === 'W') lng = -lng;
+                                                                    
+                                                                    console.log(`✅ GPS found (simple method) for ${file.name}: ${lat}, ${lng}`);
+                                                                    resolve({
+                                                                        latitude: lat,
+                                                                        longitude: lng,
+                                                                        hasLocation: true
+                                                                    });
+                                                                    return;
+                                                                }
+                                                            } catch (gpsError) {
+                                                                console.log(`Error reading GPS data: ${gpsError.message} for ${file.name}`);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                            offset += 2 + dataView.getUint16(offset + 2);
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.log('Error in simple GPS extraction:', err);
+                                }
+                                
+                                // No GPS data found
+                                console.log(`❌ No GPS data found (simple method) for ${file.name}`);
+                                resolve({
+                                    latitude: null,
+                                    longitude: null,
+                                    hasLocation: false
+                                });
+                            };
+                            reader.readAsArrayBuffer(file);
+                        });
+                    }
+
+                    extractGPSValueSimple(exifData, offset, type, count) {
+                        console.log(`Simple GPS extraction: type=${type}, count=${count}, offset=${offset}`);
+                        if (type === 5) { // Rational type
+                            const values = [];
+                            for (let i = 0; i < count; i++) {
+                                const numerator = exifData.getUint32(offset + i * 8);
+                                const denominator = exifData.getUint32(offset + i * 8 + 4);
+                                const value = denominator !== 0 ? numerator / denominator : 0;
+                                values.push(value);
+                                console.log(`GPS value ${i}: ${numerator}/${denominator} = ${value}`);
+                            }
+                            return values;
+                        }
+                        return null;
+                    }
+
+                    // Alternative GPS extraction method using a different approach
+                    getPhotoLocationAlternative(file) {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                try {
+                                    const arrayBuffer = e.target.result;
+                                    const dataView = new DataView(arrayBuffer);
+                                    
+                                    console.log(`Alternative GPS extraction for ${file.name}...`);
+                                    
+                                    // Look for EXIF data in JPEG files
+                                    if (dataView.getUint16(0) === 0xFFD8) { // JPEG marker
+                                        let offset = 2;
+                                        while (offset < dataView.byteLength) {
+                                            const marker = dataView.getUint16(offset);
+                                            if (marker === 0xFFE1) { // EXIF marker
+                                                const exifLength = dataView.getUint16(offset + 2);
+                                                const exifData = new DataView(arrayBuffer, offset + 4, exifLength - 2);
+                                                
+                                                // Try to find GPS data by searching for GPS tags directly
+                                                if (exifData.getUint16(0) === 0x4949) { // Little endian
+                                                    // Search through the entire EXIF data for GPS tags
+                                                    for (let i = 0; i < exifData.byteLength - 12; i += 2) {
+                                                        const tag = exifData.getUint16(i);
+                                                        if (tag === 0x8825) { // GPS IFD tag
+                                                            const gpsOffset = exifData.getUint32(i + 8);
+                                                            console.log(`Found GPS IFD at offset ${gpsOffset} for ${file.name}`);
+                                                            
+                                                            // Read GPS data
+                                                            const gpsNumEntries = exifData.getUint16(gpsOffset);
+                                                            console.log(`GPS entries: ${gpsNumEntries} for ${file.name}`);
+                                                            
+                                                            let gpsLatitude = null;
+                                                            let gpsLongitude = null;
+                                                            let gpsLatitudeRef = null;
+                                                            let gpsLongitudeRef = null;
+                                                            
+                                                            for (let j = 0; j < gpsNumEntries; j++) {
+                                                                const entryOffset = gpsOffset + 2 + (j * 12);
+                                                                const gpsTag = exifData.getUint16(entryOffset);
+                                                                const gpsType = exifData.getUint16(entryOffset + 2);
+                                                                const gpsCount = exifData.getUint32(entryOffset + 4);
+                                                                const gpsValueOffset = exifData.getUint32(entryOffset + 8);
+                                                                
+                                                                console.log(`GPS Tag ${gpsTag.toString(16)} (${gpsTag}), type: ${gpsType}, count: ${gpsCount} for ${file.name}`);
+                                                                
+                                                                if (gpsTag === 0x0002) { // GPSLatitude
+                                                                    gpsLatitude = this.extractGPSValue(exifData, gpsValueOffset, gpsType, gpsCount);
+                                                                    console.log(`GPS Latitude: ${gpsLatitude} for ${file.name}`);
+                                                                } else if (gpsTag === 0x0004) { // GPSLongitude
+                                                                    gpsLongitude = this.extractGPSValue(exifData, gpsValueOffset, gpsType, gpsCount);
+                                                                    console.log(`GPS Longitude: ${gpsLongitude} for ${file.name}`);
+                                                                } else if (gpsTag === 0x0001) { // GPSLatitudeRef
+                                                                    gpsLatitudeRef = String.fromCharCode(exifData.getUint8(gpsValueOffset));
+                                                                    console.log(`GPS Latitude Ref: ${gpsLatitudeRef} for ${file.name}`);
+                                                                } else if (gpsTag === 0x0003) { // GPSLongitudeRef
+                                                                    gpsLongitudeRef = String.fromCharCode(exifData.getUint8(gpsValueOffset));
+                                                                    console.log(`GPS Longitude Ref: ${gpsLongitudeRef} for ${file.name}`);
+                                                                }
+                                                            }
+                                                            
+                                                            if (gpsLatitude && gpsLongitude) {
+                                                                // Convert to decimal degrees
+                                                                let lat = gpsLatitude[0] + gpsLatitude[1]/60 + gpsLatitude[2]/3600;
+                                                                let lng = gpsLongitude[0] + gpsLongitude[1]/60 + gpsLongitude[2]/3600;
+                                                                
+                                                                if (gpsLatitudeRef === 'S') lat = -lat;
+                                                                if (gpsLongitudeRef === 'W') lng = -lng;
+                                                                
+                                                                console.log(`✅ GPS found (alternative method) for ${file.name}: ${lat}, ${lng}`);
+                                                                resolve({
+                                                                    latitude: lat,
+                                                                    longitude: lng,
+                                                                    hasLocation: true
+                                                                });
+                                                                return;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                            offset += 2 + dataView.getUint16(offset + 2);
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.log('Error in alternative GPS extraction:', err);
+                                }
+                                
+                                // No GPS data found
+                                console.log(`❌ No GPS data found (alternative method) for ${file.name}`);
+                                resolve({
+                                    latitude: null,
+                                    longitude: null,
+                                    hasLocation: false
+                                });
+                            };
+                            reader.readAsArrayBuffer(file);
+                        });
+                    }
+
+                    extractGPSValue(exifData, offset, type, count) {
+                        console.log(`Extracting GPS value: type=${type}, count=${count}, offset=${offset}`);
+                        if (type === 5) { // Rational type
+                            const values = [];
+                            for (let i = 0; i < count; i++) {
+                                const numerator = exifData.getUint32(offset + i * 8);
+                                const denominator = exifData.getUint32(offset + i * 8 + 4);
+                                const value = denominator !== 0 ? numerator / denominator : 0;
+                                values.push(value);
+                                console.log(`GPS value ${i}: ${numerator}/${denominator} = ${value}`);
+                            }
+                            return values;
+                        } else if (type === 2) { // ASCII type
+                            const value = String.fromCharCode(exifData.getUint8(offset));
+                            console.log(`GPS ASCII value: ${value}`);
+                            return value;
+                        }
+                        return null;
+                    }
+
+                    async getLocationName(latitude, longitude) {
+                        try {
+                            console.log(`Looking up location for coordinates: ${latitude}, ${longitude}`);
+                            
+                            // Use OpenStreetMap Nominatim API (free, no API key required)
+                            const response = await fetch(
+                                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`
+                            );
+                            
+                            console.log(`API response status: ${response.status}`);
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                console.log('API response data:', data);
+                                
+                                if (data.display_name) {
+                                    // Extract city, state, country from the response
+                                    const address = data.address || {};
+                                    const city = address.city || address.town || address.village || '';
+                                    const state = address.state || address.region || '';
+                                    const country = address.country || '';
+                                    
+                                    let locationName = '';
+                                    if (city && state) {
+                                        locationName = `${city}, ${state}`;
+                                    } else if (city) {
+                                        locationName = city;
+                                    } else if (state) {
+                                        locationName = state;
+                                    } else {
+                                        locationName = country || 'Unknown Location';
+                                    }
+                                    
+                                    console.log(`Location name resolved: ${locationName}`);
+                                    return {
+                                        name: locationName,
+                                        fullAddress: data.display_name,
+                                        city: city,
+                                        state: state,
+                                        country: country
+                                    };
+                                }
+                            } else {
+                                console.error(`API request failed with status: ${response.status}`);
+                            }
+                        } catch (error) {
+                            console.error('Error getting location name:', error);
+                        }
+                        
+                        // Fallback to coordinates
+                        console.log(`Using coordinate fallback: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+                        return {
+                            name: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+                            fullAddress: `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`,
+                            city: '',
+                            state: '',
+                            country: ''
+                        };
+                    }
+
+            // Location-related methods removed as per user request
+
+            showStatus(message, type) {
+                this.status.textContent = message;
+                this.status.className = `status show ${type}`;
+            }
+
+            showProgress(show) {
+                this.progress.classList.toggle('show', show);
+            }
+
+            updateProgress(percent) {
+                this.progressBar.style.width = `${percent}%`;
+            }
+
+            showResults() {
+                const totalPhotos = this.selectedFiles.length;
+                const locations = Object.keys(this.organizedData);
+                const totalLocations = locations.length;
+                
+                // Count total years across all locations
+                const totalYears = Object.values(this.organizedData)
+                    .reduce((total, locationData) => total + Object.keys(locationData).length, 0);
+                
+                // Count total months across all locations and years
+                const totalMonths = Object.values(this.organizedData)
+                    .reduce((total, locationData) => 
+                        total + Object.values(locationData)
+                            .reduce((locTotal, yearData) => locTotal + Object.keys(yearData).length, 0), 0);
+
+                // Update stats with duplicate, unidentified, and location counts
+                this.stats.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-number">${totalPhotos}</div>
+                        <div class="stat-label">Total Media</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${totalLocations}</div>
+                        <div class="stat-label">Locations</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${totalYears}</div>
+                        <div class="stat-label">Years</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${totalMonths}</div>
+                        <div class="stat-label">Months</div>
+                    </div>
+                            <div class="stat-card">
+                                <div class="stat-number" id="duplicateCounter" style="cursor: ${this.duplicateCount > 0 ? 'pointer' : 'default'}; color: ${this.duplicateCount > 0 ? '#dc3545' : '#6c757d'}; text-decoration: ${this.duplicateCount > 0 ? 'underline' : 'none'};" title="${this.duplicateCount > 0 ? 'Click to view and manage duplicates' : 'No duplicates found'}">${this.duplicateCount || 0}</div>
+                                <div class="stat-label">Duplicates</div>
+                            </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${this.unidentifiedCount || 0}</div>
+                        <div class="stat-label">Unidentified</div>
+                    </div>
+                `;
+
+                    // Add organized folder info
+                    const method = this.getOrganizationMethod();
+                    const zipEnabled = this.isZipEnabled();
+                            const organizedFolderInfo = this.rootFolderHandle ? 
+                                `<div style="background: #d4edda; padding: 15px; border-radius: 6px; margin-bottom: 20px; color: #155724;">
+                                    <strong>📁 Organized Folder:</strong> "Organized photo" folder created in your selected root directory<br>
+                                    <strong>📄 Log File:</strong> "photoSorter-log.txt" created with detailed operation log${zipEnabled ? '<br><strong>📦 Folder Backup:</strong> Complete ZIP backup of original folder created before organization' : ''}
+                                    ${this.duplicateCount > 0 ? `<br><strong>🔄 Duplicate Files:</strong> ${this.duplicateCount} files were automatically renamed with _1, _2, etc. to avoid conflicts` : ''}
+                                </div>` : '';
+
+                // Enhanced location/year groups with month breakdown
+                this.yearGroups.innerHTML = organizedFolderInfo + Object.keys(this.organizedData).sort().map(locationName => {
+                    const locationData = this.organizedData[locationName];
+                    const totalPhotosInLocation = Object.values(locationData)
+                        .reduce((total, yearData) => 
+                            total + Object.values(yearData)
+                                .reduce((yearTotal, monthData) => yearTotal + monthData.photos.length, 0), 0);
+                    
+                    // Show year breakdown for this location
+                    const yearBreakdown = Object.keys(locationData)
+                        .sort((a, b) => parseInt(a) - parseInt(b))
+                        .map(year => {
+                            const yearData = locationData[year];
+                            const totalPhotosInYear = Object.values(yearData)
+                                .reduce((total, monthData) => total + monthData.photos.length, 0);
+                            
+                            // Show month breakdown for this year
+                            const monthBreakdown = Object.keys(yearData)
+                                .sort((a, b) => parseInt(a) - parseInt(b))
+                                .map(month => {
+                                    const monthData = yearData[month];
+                                    const monthPhotos = monthData.photos;
+                                    
+                                    return `
+                                        <div style="margin-left: 40px; margin-top: 4px; padding: 6px; background: #e9ecef; border-radius: 3px;">
+                                            <div style="font-size: 0.9rem; color: #666;">
+                                                ${month.toString().padStart(2, '0')}-${monthData.monthName} - ${monthPhotos.length} photos
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('');
+                            
+                            return `
+                                <div style="margin-left: 20px; margin-top: 8px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                                    <div style="font-weight: bold; color: #333;">
+                                        📅 ${year} - ${totalPhotosInYear} photos
+                                    </div>
+                                    ${monthBreakdown}
+                                </div>
+                            `;
+                        }).join('');
+                    
+                    return `
+                        <div class="year-group">
+                            <div class="year-title">📍 ${locationName} - ${totalPhotosInLocation} photos</div>
+                            ${yearBreakdown}
+                        </div>
+                    `;
+                }).join('');
+
+                this.results.classList.add('show');
+                
+                // Update duplicate counter styling
+                this.updateDuplicateCounter();
+            }
+
+
+            clearSelection() {
+                this.selectedFiles = [];
+                this.organizedData = {};
+                this.duplicateCount = 0;
+                this.unidentifiedCount = 0;
+                this.locationCount = 0;
+                this.duplicateFiles.clear();
+                this.processedFiles.clear();
+                this.folderHandle = null;
+                this.rootFolderHandle = null;
+                this.fileInfo.style.display = 'none';
+                this.results.classList.remove('show');
+                this.status.classList.remove('show');
+                this.organizeBtn.disabled = true;
+                this.clearBtn.disabled = true;
+                this.testGPSBtn.disabled = true;
+                
+                        // Close modal if open and cleanup
+                        this.closeDuplicateModal();
+            }
+
+            async testGPS() {
+                if (this.selectedFiles.length === 0) {
+                    this.showStatus('Please select files first', 'error');
+                    return;
+                }
+
+                this.showStatus('Testing GPS extraction...', 'processing');
+                this.showProgress(true);
+
+                let gpsFound = 0;
+                let totalTested = 0;
+                let exifFound = 0;
+
+                for (const file of this.selectedFiles.slice(0, 5)) { // Test first 5 files
+                    try {
+                        console.log(`\n=== Testing GPS for: ${file.name} ===`);
+                        
+                        // First, let's check if the file has EXIF data at all
+                        const hasExif = await this.checkForExifData(file);
+                        if (hasExif) {
+                            exifFound++;
+                            console.log(`✅ EXIF data found in ${file.name}`);
+                        } else {
+                            console.log(`❌ No EXIF data found in ${file.name}`);
+                        }
+                        
+                        // Try the main method first
+                        let locationData = await this.getPhotoLocation(file);
+                        
+                        // If no GPS found, try the alternative method
+                        if (!locationData.hasLocation) {
+                            console.log(`Trying alternative GPS extraction for ${file.name}...`);
+                            locationData = await this.getPhotoLocationAlternative(file);
+                        }
+                        
+                        // If still no GPS found, try the simple method
+                        if (!locationData.hasLocation) {
+                            console.log(`Trying simple GPS extraction for ${file.name}...`);
+                            locationData = await this.getPhotoLocationSimple(file);
+                        }
+                        
+                        // If still no GPS found, try the comprehensive method
+                        if (!locationData.hasLocation) {
+                            console.log(`Trying comprehensive GPS extraction for ${file.name}...`);
+                            locationData = await this.getPhotoLocationComprehensive(file);
+                        }
+                        
+                        totalTested++;
+                        
+                        if (locationData.hasLocation) {
+                            gpsFound++;
+                            console.log(`✅ GPS found in ${file.name}: ${locationData.latitude}, ${locationData.longitude}`);
+                            
+                            // Test reverse geocoding
+                            const locationInfo = await this.getLocationName(locationData.latitude, locationData.longitude);
+                            console.log(`📍 Location name: ${locationInfo.name}`);
+                        } else {
+                            console.log(`❌ No GPS data in ${file.name}`);
+                        }
+                    } catch (error) {
+                        console.error(`Error testing GPS for ${file.name}:`, error);
+                    }
+                }
+
+                this.showProgress(false);
+                this.showStatus(`GPS Test Complete: ${gpsFound}/${totalTested} files had GPS data, ${exifFound}/${totalTested} had EXIF data. Check console for details.`, gpsFound > 0 ? 'success' : 'error');
+            }
+
+            async checkForExifData(file) {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const arrayBuffer = e.target.result;
+                            const dataView = new DataView(arrayBuffer);
+                            
+                            // Look for EXIF data in JPEG files
+                            if (dataView.getUint16(0) === 0xFFD8) { // JPEG marker
+                                let offset = 2;
+                                while (offset < dataView.byteLength) {
+                                    const marker = dataView.getUint16(offset);
+                                    if (marker === 0xFFE1) { // EXIF marker
+                                        console.log(`EXIF marker found at offset ${offset} for ${file.name}`);
+                                        resolve(true);
+                                        return;
+                                    }
+                                    offset += 2 + dataView.getUint16(offset + 2);
+                                }
+                            }
+                            resolve(false);
+                        } catch (err) {
+                            console.log('Error checking EXIF data:', err);
+                            resolve(false);
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+        }
+
+        // Initialize the application
+        let photoSorter;
+        document.addEventListener('DOMContentLoaded', () => {
+            photoSorter = new PhotoSorter();
+        });
+    </script>
+</body>
+</html>
