@@ -367,32 +367,34 @@
 
             async selectFolder() {
                 try {
-                    // Check if we're on HTTPS (required for File System Access API)
-                    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-                        this.showError('⚠️ Folder selection requires HTTPS. Please use Chrome/Edge browser or try the individual file selection below.');
-                        return;
-                    }
-
-                    // Try modern File System Access API first
+                    console.log('Attempting folder selection...');
+                    
+                    // Try modern File System Access API first (Chrome/Edge)
                     if ('showDirectoryPicker' in window) {
                         console.log('Using File System Access API');
-                        const dirHandle = await window.showDirectoryPicker();
-                        await this.handleDirectorySelection(dirHandle);
-                    } else {
-                        // Fallback to traditional file input with webkitdirectory
-                        console.log('Using fallback file input with webkitdirectory');
-                        const input = document.getElementById('folderInput');
-                        input.setAttribute('webkitdirectory', '');
-                        input.setAttribute('directory', '');
-                        input.setAttribute('multiple', '');
-                        input.click();
+                        try {
+                            const dirHandle = await window.showDirectoryPicker();
+                            await this.handleDirectorySelection(dirHandle);
+                            return;
+                        } catch (error) {
+                            console.log('File System Access API failed, trying fallback...');
+                        }
                     }
+                    
+                    // Fallback to webkitdirectory (Safari, Firefox, older browsers)
+                    console.log('Using webkitdirectory fallback');
+                    const input = document.getElementById('folderInput');
+                    input.setAttribute('webkitdirectory', '');
+                    input.setAttribute('directory', '');
+                    input.setAttribute('multiple', '');
+                    input.click();
+                    
                 } catch (error) {
                     if (error.name === 'AbortError') {
                         console.log('Folder selection cancelled');
                     } else {
                         console.error('Error selecting folder:', error);
-                        this.showError('Error selecting folder. Please try using Chrome/Edge browser or use the individual file selection below.');
+                        this.showError('Folder selection failed. Please try the "Select Individual Files" option below.');
                     }
                 }
             }
