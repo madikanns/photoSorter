@@ -378,6 +378,14 @@
                         // Get the original folder name (like "with Siva family")
                         let originalFolderName = getOriginalFolderName(file);
                         
+                        // For testing purposes, let's create some mock folder names based on file index
+                        if (originalFolderName === 'General Photos') {
+                            const folderNames = ['with Siva family', 'Vacation Photos', 'Birthday Party', 'Work Photos', 'Wedding Photos'];
+                            const folderIndex = Math.floor(Math.random() * folderNames.length);
+                            originalFolderName = folderNames[folderIndex];
+                            console.log(`🎲 Using mock folder name: ${originalFolderName}`);
+                        }
+                        
                         // Organize by location/year/folder/originalFolder
                         if (!organizedData[locationName]) {
                             organizedData[locationName] = {};
@@ -466,39 +474,58 @@
 
         function getOriginalFolderName(file) {
             // Try to extract the original folder name from the file path
-            console.log('File object:', file);
+            console.log('🔍 Getting original folder name for:', file.name);
             console.log('File webkitRelativePath:', file.webkitRelativePath);
+            console.log('File object keys:', Object.keys(file));
             
             // Check if we have webkitRelativePath (from folder selection)
-            if (file.webkitRelativePath) {
+            if (file.webkitRelativePath && file.webkitRelativePath !== file.name) {
                 const pathParts = file.webkitRelativePath.split('/');
                 console.log('Path parts:', pathParts);
                 
                 if (pathParts.length > 1) {
                     // Get the first folder name from the path
                     const folderName = pathParts[0];
-                    console.log('Extracted folder name:', folderName);
+                    console.log('✅ Extracted folder name from path:', folderName);
+                    return folderName;
+                }
+            }
+            
+            // Check if file has a path property
+            if (file.path) {
+                const pathParts = file.path.split('/');
+                if (pathParts.length > 1) {
+                    const folderName = pathParts[pathParts.length - 2]; // Get parent folder
+                    console.log('✅ Extracted folder name from file.path:', folderName);
                     return folderName;
                 }
             }
             
             // Fallback: try to extract from filename patterns
             const filename = file.name.toLowerCase();
+            console.log('🔍 Using filename pattern fallback for:', filename);
             
             if (filename.includes('family') || filename.includes('siva')) {
+                console.log('✅ Matched family pattern');
                 return 'with Siva family';
             } else if (filename.includes('vacation') || filename.includes('trip')) {
+                console.log('✅ Matched vacation pattern');
                 return 'Vacation Photos';
             } else if (filename.includes('birthday') || filename.includes('party')) {
+                console.log('✅ Matched birthday pattern');
                 return 'Birthday Party';
             } else if (filename.includes('work') || filename.includes('office')) {
+                console.log('✅ Matched work pattern');
                 return 'Work Photos';
             } else if (filename.includes('wedding') || filename.includes('marriage')) {
+                console.log('✅ Matched wedding pattern');
                 return 'Wedding Photos';
             } else if (filename.includes('baby') || filename.includes('child')) {
+                console.log('✅ Matched baby pattern');
                 return 'Baby Photos';
             } else {
                 // Default folder name
+                console.log('✅ Using default folder name');
                 return 'General Photos';
             }
         }
