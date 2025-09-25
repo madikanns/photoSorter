@@ -307,7 +307,7 @@
                 <!-- Simple file selection -->
                 <div style="margin-bottom: 20px; text-align: center;">
                     <input type="file" id="fileInput" multiple accept="image/*,video/*" style="display: none;" onchange="handleFileSelection(event)">
-                    <button class="btn" onclick="document.getElementById('fileInput').click()" style="font-size: 1.2rem; padding: 15px 30px;">
+                    <button class="btn" onclick="selectFiles()" style="font-size: 1.2rem; padding: 15px 30px;">
                         📁 Choose Photos & Videos
                     </button>
                     <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
@@ -730,6 +730,19 @@
 
                 this.showStatus('Starting photo organization by location and year...');
                 this.showProgress(0);
+                
+                // Test GPS server connection first
+                try {
+                    console.log('🔍 Testing GPS server connection...');
+                    const testResponse = await fetch('http://localhost:8088/health', { method: 'GET' });
+                    if (!testResponse.ok) {
+                        console.warn('⚠️ GPS server not responding, will use fallback method');
+                    } else {
+                        console.log('✅ GPS server is running');
+                    }
+                } catch (error) {
+                    console.warn('⚠️ GPS server not available, will use fallback method:', error);
+                }
 
                 try {
                     const organizedData = {};
@@ -742,15 +755,21 @@
                         this.showStatus(`Processing ${file.name} (${i + 1}/${this.selectedFiles.length})...`);
                         
                         try {
+                            console.log(`🔍 Processing file: ${file.name}`);
                             const locationData = await this.getPhotoLocation(file);
+                            console.log(`📍 Location data for ${file.name}:`, locationData);
                             
                             if (locationData.hasLocation) {
                                 gpsFound++;
                                 console.log(`✅ GPS found in ${file.name}: ${locationData.latitude}, ${locationData.longitude}`);
                                 
-                                // Get location name
-                                const locationInfo = await this.getLocationName(locationData.latitude, locationData.longitude);
-                                const locationName = locationInfo.name;
+                                // Use location name from server if available, otherwise use coordinates
+                                let locationName = 'Unknown Location';
+                                if (locationData.locationName) {
+                                    locationName = locationData.locationName;
+                                } else {
+                                    locationName = `${locationData.latitude.toFixed(4)}, ${locationData.longitude.toFixed(4)}`;
+                                }
                                 
                                 // Get file date
                                 const fileDate = new Date(file.lastModified);
@@ -1089,7 +1108,14 @@
         }
 
         function selectFiles() {
-            photoSorter.selectFiles();
+            console.log('Select files button clicked');
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput) {
+                fileInput.click();
+                console.log('File input clicked');
+            } else {
+                console.error('File input not found');
+            }
         }
 
         function organizePhotos() {
