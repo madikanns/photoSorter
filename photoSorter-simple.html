@@ -193,6 +193,10 @@
     <script>
         let selectedFiles = [];
         let organizedData = {};
+        
+        // Version check
+        console.log('🔍 DEBUG: PhotoSorter Version 2.0 - Enhanced folder creation with subfolder support');
+        console.log('🔍 DEBUG: Changes deployed at:', new Date().toISOString());
 
         function selectFiles() {
             console.log('Select files button clicked');
@@ -428,19 +432,24 @@
                         
                         // Get the original folder name (like "with Siva family")
                         let originalFolderName = getOriginalFolderName(file);
+                        console.log(`🔍 DEBUG: File ${file.name} assigned to folder: "${originalFolderName}"`);
                         
                         // Organize by location/year/folder/originalFolder
                         if (!organizedData[locationName]) {
                             organizedData[locationName] = {};
+                            console.log(`🔍 DEBUG: Created location: ${locationName}`);
                         }
                         if (!organizedData[locationName][year]) {
                             organizedData[locationName][year] = {};
+                            console.log(`🔍 DEBUG: Created year: ${year}`);
                         }
                         if (!organizedData[locationName][year][folderName]) {
                             organizedData[locationName][year][folderName] = {};
+                            console.log(`🔍 DEBUG: Created month: ${folderName}`);
                         }
                         if (!organizedData[locationName][year][folderName][originalFolderName]) {
                             organizedData[locationName][year][folderName][originalFolderName] = [];
+                            console.log(`🔍 DEBUG: Created subfolder: ${originalFolderName}`);
                         }
                         
                         organizedData[locationName][year][folderName][originalFolderName].push({
@@ -452,6 +461,7 @@
                         });
                         
                         console.log(`📁 Organized: ${file.name} → ${locationName}/${year}/${folderName}/${originalFolderName}`);
+                        console.log(`🔍 DEBUG: Current organizedData structure:`, JSON.stringify(organizedData, null, 2));
                         
                     } catch (error) {
                         console.log(`Error processing ${file.name}:`, error);
@@ -672,21 +682,29 @@ ${generateFolderStructure(organizedData)}
                             const monthHandle = await yearHandle.getDirectoryHandle(month, { create: true });
                             
                             for (const [subfolder, files] of Object.entries(subfolders)) {
-                                console.log(`Creating subfolder: ${subfolder}`);
-                                const subfolderHandle = await monthHandle.getDirectoryHandle(subfolder, { create: true });
+                                console.log(`🔍 DEBUG: Creating subfolder: "${subfolder}" with ${files.length} files`);
+                                console.log(`🔍 DEBUG: Files in subfolder:`, files.map(f => f.name));
                                 
-                                // Copy files to subfolder
-                                for (const fileInfo of files) {
-                                    try {
-                                        const fileHandle = await subfolderHandle.getFileHandle(fileInfo.name, { create: true });
-                                        const writable = await fileHandle.createWritable();
-                                        await writable.write(fileInfo.file);
-                                        await writable.close();
-                                        totalFiles++;
-                                        console.log(`✅ Copied: ${fileInfo.name} → Organized Photos/${location}/${year}/${month}/${subfolder}/`);
-                                    } catch (error) {
-                                        console.warn(`Could not copy file ${fileInfo.name}:`, error);
+                                try {
+                                    const subfolderHandle = await monthHandle.getDirectoryHandle(subfolder, { create: true });
+                                    console.log(`✅ DEBUG: Successfully created subfolder: ${subfolder}`);
+                                    
+                                    // Copy files to subfolder
+                                    for (const fileInfo of files) {
+                                        try {
+                                            console.log(`🔍 DEBUG: Copying file ${fileInfo.name} to subfolder ${subfolder}`);
+                                            const fileHandle = await subfolderHandle.getFileHandle(fileInfo.name, { create: true });
+                                            const writable = await fileHandle.createWritable();
+                                            await writable.write(fileInfo.file);
+                                            await writable.close();
+                                            totalFiles++;
+                                            console.log(`✅ Copied: ${fileInfo.name} → Organized Photos/${location}/${year}/${month}/${subfolder}/`);
+                                        } catch (error) {
+                                            console.warn(`Could not copy file ${fileInfo.name}:`, error);
+                                        }
                                     }
+                                } catch (error) {
+                                    console.error(`❌ DEBUG: Failed to create subfolder ${subfolder}:`, error);
                                 }
                             }
                         }
