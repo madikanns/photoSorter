@@ -1,0 +1,42 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install Python dependencies
+      run: |
+        pip install -r requirements.txt
+        
+    - name: Install Node dependencies
+      run: |
+        cd frontend && npm install
+        
+    - name: Build frontend
+      run: |
+        cd frontend && npm run build
+        
+    - name: Deploy to Render
+      run: |
+        echo "Deployment triggered by GitHub push"
+        echo "Render should automatically detect the changes and redeploy"
