@@ -304,10 +304,15 @@
                 <h2>📁 Select Media Files</h2>
                 <p>Choose photos and videos to organize by location and year. You can select multiple files at once.</p>
                 
-                <!-- Primary file selection -->
-                <div style="margin-bottom: 20px;">
-                    <input type="file" id="fileInput" multiple accept="image/*,video/*" style="margin: 10px 0; padding: 10px; border: 2px dashed #007bff; border-radius: 8px; width: 100%;">
-                    <button class="btn" onclick="selectFiles()" style="margin-top: 10px;">📁 Choose Files</button>
+                <!-- Simple file selection -->
+                <div style="margin-bottom: 20px; text-align: center;">
+                    <input type="file" id="fileInput" multiple accept="image/*,video/*" style="display: none;" onchange="handleFileSelection(event)">
+                    <button class="btn" onclick="document.getElementById('fileInput').click()" style="font-size: 1.2rem; padding: 15px 30px;">
+                        📁 Choose Photos & Videos
+                    </button>
+                    <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
+                        Click the button above to select multiple files at once
+                    </p>
                 </div>
                 
                 <div id="selectedFiles" class="file-list" style="display: none;"></div>
@@ -1093,6 +1098,42 @@
 
         function clearSelection() {
             photoSorter.clearSelection();
+        }
+
+        // Simple file selection handler
+        function handleFileSelection(event) {
+            console.log('File selection triggered');
+            const files = Array.from(event.target.files);
+            console.log(`Selected ${files.length} files`);
+            
+            if (files.length === 0) {
+                console.log('No files selected');
+                return;
+            }
+            
+            // Filter for valid media files
+            const validFiles = files.filter(file => {
+                const isValid = file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|tiff|tif|heic|mp4|mov|avi|mkv|webm|m4v|3gp|flv|wmv)$/);
+                console.log(`File ${file.name}: ${isValid ? 'valid' : 'invalid'}`);
+                return isValid;
+            });
+
+            if (validFiles.length > 0) {
+                // Store files in the photoSorter instance
+                photoSorter.selectedFiles = validFiles.map(file => ({
+                    name: file.name,
+                    file: file,
+                    size: file.size,
+                    type: file.type
+                }));
+                
+                // Show selected files
+                photoSorter.showSelectedFiles();
+                document.getElementById('organizeBtn').disabled = false;
+                photoSorter.showStatus(`Selected ${validFiles.length} media files. Click "Organize Photos" to organize by location and year.`);
+            } else {
+                photoSorter.showError('No valid media files found. Please select image or video files.');
+            }
         }
     </script>
 </body>
