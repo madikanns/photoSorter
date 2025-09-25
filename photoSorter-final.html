@@ -154,10 +154,11 @@
 
         <div class="section">
             <h2>📁 Select Photos</h2>
-            <p>Choose photos and videos to organize by location and year.</p>
+            <p>Choose photos and videos to organize by location and year. You can select individual files or entire folders.</p>
             
             <input type="file" id="fileInput" class="file-input" multiple accept="image/*,video/*">
             <button class="btn" onclick="selectFiles()">📁 Choose Photos & Videos</button>
+            <button class="btn" onclick="selectFolder()">📂 Choose Folder</button>
             
             <div id="fileList" class="file-list" style="display: none;"></div>
         </div>
@@ -195,7 +196,20 @@
 
         function selectFiles() {
             console.log('Select files button clicked');
-            document.getElementById('fileInput').click();
+            // Remove webkitdirectory attribute for individual file selection
+            const fileInput = document.getElementById('fileInput');
+            fileInput.removeAttribute('webkitdirectory');
+            fileInput.removeAttribute('directory');
+            fileInput.click();
+        }
+
+        function selectFolder() {
+            console.log('Select folder button clicked');
+            // Add webkitdirectory attribute for folder selection
+            const fileInput = document.getElementById('fileInput');
+            fileInput.setAttribute('webkitdirectory', '');
+            fileInput.setAttribute('directory', '');
+            fileInput.click();
         }
 
         function handleFileSelection(event) {
@@ -212,6 +226,9 @@
             const validFiles = files.filter(file => {
                 const isValid = file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|tiff|tif|heic|mp4|mov|avi|mkv|webm|m4v|3gp|flv|wmv)$/);
                 console.log(`File ${file.name}: ${isValid ? 'valid' : 'invalid'}`);
+                if (isValid) {
+                    console.log(`File path: ${file.webkitRelativePath || 'No path'}`);
+                }
                 return isValid;
             });
 
@@ -219,7 +236,14 @@
                 selectedFiles = validFiles;
                 showSelectedFiles();
                 document.getElementById('organizeBtn').disabled = false;
-                showStatus(`Selected ${validFiles.length} media files. Click "Organize Photos" to organize by location and year.`, 'success');
+                
+                // Check if this is a folder selection
+                const isFolderSelection = validFiles.some(file => file.webkitRelativePath);
+                if (isFolderSelection) {
+                    showStatus(`Selected ${validFiles.length} media files from folder. Click "Organize Photos" to organize by location and year.`, 'success');
+                } else {
+                    showStatus(`Selected ${validFiles.length} media files. Click "Organize Photos" to organize by location and year.`, 'success');
+                }
             } else {
                 showStatus('No valid media files found. Please select image or video files.', 'error');
             }
@@ -230,11 +254,43 @@
             fileList.innerHTML = '';
             fileList.style.display = 'block';
             
+            // Group files by folder
+            const folderGroups = {};
+            
             selectedFiles.forEach(file => {
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item';
-                fileItem.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-                fileList.appendChild(fileItem);
+                const folderName = file.webkitRelativePath ? 
+                    file.webkitRelativePath.split('/')[0] : 
+                    'Individual Files';
+                
+                if (!folderGroups[folderName]) {
+                    folderGroups[folderName] = [];
+                }
+                folderGroups[folderName].push(file);
+            });
+            
+            // Display files grouped by folder
+            Object.entries(folderGroups).forEach(([folderName, files]) => {
+                const folderDiv = document.createElement('div');
+                folderDiv.style.marginBottom = '10px';
+                folderDiv.style.padding = '10px';
+                folderDiv.style.backgroundColor = '#e9ecef';
+                folderDiv.style.borderRadius = '5px';
+                
+                const folderHeader = document.createElement('div');
+                folderHeader.style.fontWeight = 'bold';
+                folderHeader.style.marginBottom = '5px';
+                folderHeader.textContent = `📁 ${folderName} (${files.length} files)`;
+                folderDiv.appendChild(folderHeader);
+                
+                files.forEach(file => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.style.marginLeft = '15px';
+                    fileItem.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                    folderDiv.appendChild(fileItem);
+                });
+                
+                fileList.appendChild(folderDiv);
             });
         }
 
@@ -410,9 +466,23 @@
 
         function getOriginalFolderName(file) {
             // Try to extract the original folder name from the file path
-            // This simulates getting the folder name where the photo was originally located
+            console.log('File object:', file);
+            console.log('File webkitRelativePath:', file.webkitRelativePath);
             
-            // For demo purposes, let's simulate different folder names based on file name patterns
+            // Check if we have webkitRelativePath (from folder selection)
+            if (file.webkitRelativePath) {
+                const pathParts = file.webkitRelativePath.split('/');
+                console.log('Path parts:', pathParts);
+                
+                if (pathParts.length > 1) {
+                    // Get the first folder name from the path
+                    const folderName = pathParts[0];
+                    console.log('Extracted folder name:', folderName);
+                    return folderName;
+                }
+            }
+            
+            // Fallback: try to extract from filename patterns
             const filename = file.name.toLowerCase();
             
             if (filename.includes('family') || filename.includes('siva')) {
