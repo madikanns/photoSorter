@@ -20,6 +20,8 @@ services:
       echo "Starting PhotoSorter application..."
       cd frontend/public
       echo "Current directory: $(pwd)"
+      echo "Listing directory contents:"
+      ls -la
       echo "Starting GPS extraction server in background..."
       python3 gps-extractor.py 8088 &
       echo "Starting web server..."
