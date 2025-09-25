@@ -306,6 +306,14 @@
                 <button class="btn" id="selectFolderBtn" onclick="selectFolder()">📁 Select Folder</button>
                 <input type="file" id="folderInput" multiple accept="image/*,video/*" style="margin: 10px 0; display: none;">
                 <div id="selectedFiles" class="file-list" style="display: none;"></div>
+                
+                <!-- Fallback option for browsers that don't support folder selection -->
+                <div class="fallback-section" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <h3 style="color: #856404; margin-bottom: 10px;">🔧 Alternative: Individual File Selection</h3>
+                    <p style="color: #856404; margin-bottom: 15px;">If folder selection doesn't work, you can select individual files:</p>
+                    <input type="file" id="individualFiles" multiple accept="image/*,video/*" style="margin: 10px 0;">
+                    <button class="btn" onclick="handleIndividualFiles()" style="background: #ffc107; color: #000;">📸 Select Individual Files</button>
+                </div>
             </div>
 
             <div class="section">
@@ -359,20 +367,32 @@
 
             async selectFolder() {
                 try {
+                    // Check if we're on HTTPS (required for File System Access API)
+                    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                        this.showError('⚠️ Folder selection requires HTTPS. Please use Chrome/Edge browser or try the individual file selection below.');
+                        return;
+                    }
+
                     // Try modern File System Access API first
                     if ('showDirectoryPicker' in window) {
+                        console.log('Using File System Access API');
                         const dirHandle = await window.showDirectoryPicker();
                         await this.handleDirectorySelection(dirHandle);
                     } else {
-                        // Fallback to traditional file input
-                        document.getElementById('folderInput').click();
+                        // Fallback to traditional file input with webkitdirectory
+                        console.log('Using fallback file input with webkitdirectory');
+                        const input = document.getElementById('folderInput');
+                        input.setAttribute('webkitdirectory', '');
+                        input.setAttribute('directory', '');
+                        input.setAttribute('multiple', '');
+                        input.click();
                     }
                 } catch (error) {
                     if (error.name === 'AbortError') {
                         console.log('Folder selection cancelled');
                     } else {
                         console.error('Error selecting folder:', error);
-                        this.showError('Error selecting folder. Please try again.');
+                        this.showError('Error selecting folder. Please try using Chrome/Edge browser or use the individual file selection below.');
                     }
                 }
             }
@@ -1075,6 +1095,27 @@
         function organizePhotos() {
             photoSorter.organizePhotos();
         }
+
+        function handleIndividualFiles() {
+            const input = document.getElementById('individualFiles');
+            input.click();
+        }
+
+        // Handle individual file selection
+        document.getElementById('individualFiles').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            if (files.length > 0) {
+                photoSorter.selectedFiles = files.map(file => ({
+                    name: file.name,
+                    file: file,
+                    size: file.size,
+                    type: file.type
+                }));
+                photoSorter.showSelectedFiles();
+                document.getElementById('organizeBtn').disabled = false;
+                photoSorter.showStatus(`Selected ${files.length} files. Click "Organize Photos" to organize by location and year.`);
+            }
+        });
 
         function clearSelection() {
             photoSorter.clearSelection();
