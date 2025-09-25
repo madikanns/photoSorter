@@ -203,13 +203,25 @@
             fileInput.click();
         }
 
-        function selectFolder() {
+        async function selectFolder() {
             console.log('Select folder button clicked');
-            // Add webkitdirectory attribute for folder selection
-            const fileInput = document.getElementById('fileInput');
-            fileInput.setAttribute('webkitdirectory', '');
-            fileInput.setAttribute('directory', '');
-            fileInput.click();
+            
+            // Try modern File System Access API first
+            if ('showDirectoryPicker' in window) {
+                try {
+                    const dirHandle = await window.showDirectoryPicker();
+                    await handleDirectorySelection(dirHandle);
+                } catch (error) {
+                    console.error('Directory picker failed:', error);
+                    showStatus('Folder selection cancelled or failed: ' + error.message, 'error');
+                }
+            } else {
+                // Fallback to webkitdirectory
+                const fileInput = document.getElementById('fileInput');
+                fileInput.setAttribute('webkitdirectory', '');
+                fileInput.setAttribute('directory', '');
+                fileInput.click();
+            }
         }
 
         async function handleDirectorySelection(dirHandle) {
@@ -464,7 +476,11 @@
                 // Create actual folders
                 if (Object.keys(organizedData).length > 0) {
                     showStatus('Creating organized folder structure...', 'info');
+                    console.log('About to call createOrganizedFolders with data:', organizedData);
                     await createOrganizedFolders(organizedData);
+                } else {
+                    console.log('No organized data to create folders for');
+                    showStatus('No data to organize', 'error');
                 }
                 
             } catch (error) {
@@ -630,10 +646,12 @@ ${generateFolderStructure(organizedData)}
             try {
                 console.log('Creating organized folders...');
                 console.log('Organized data structure:', organizedData);
+                console.log('Directory handle available:', !!window.originalDirectoryHandle);
                 
                 // Check if we have access to the original directory
                 if (!window.originalDirectoryHandle) {
                     console.log('No directory access - creating downloadable zip instead');
+                    showStatus('No directory access - creating downloadable zip file instead of physical folders', 'info');
                     await createOrganizedZip(organizedData);
                     return;
                 }
