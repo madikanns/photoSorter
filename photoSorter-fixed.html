@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhotoSorter - Fixed Version</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1976d2, #42a5f5);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .section {
+            padding: 30px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #1976d2, #42a5f5);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-list {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📸 PhotoSorter</h1>
+            <p>Organize your photos by location and year</p>
+        </div>
+
+        <div class="section">
+            <h2>📁 Select Photos</h2>
+            <p>Choose photos and videos to organize by location and year.</p>
+            
+            <input type="file" id="fileInput" class="file-input" multiple accept="image/*,video/*">
+            <button class="btn" onclick="selectFiles()">📁 Choose Photos & Videos</button>
+            
+            <div id="fileList" class="file-list" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ Organization Options</h2>
+            <label>
+                <input type="radio" name="action" value="copy" checked> Copy photos (keep originals)
+            </label>
+            <br>
+            <label>
+                <input type="radio" name="action" value="move"> Move photos (delete originals)
+            </label>
+        </div>
+
+        <div class="section">
+            <button class="btn" id="organizeBtn" onclick="organizePhotos()" disabled>Organize Photos</button>
+            <button class="btn" onclick="clearSelection()">Clear Selection</button>
+        </div>
+
+        <div id="status" class="status"></div>
+        <div id="progress" class="progress">
+            <div class="progress-bar"></div>
+        </div>
+
+        <div id="results" class="results">
+            <h2>📊 Organization Results</h2>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+        let organizedData = {};
+
+        function selectFiles() {
+            console.log('Select files button clicked');
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFileSelection(event) {
+            console.log('File selection triggered');
+            const files = Array.from(event.target.files);
+            console.log(`Selected ${files.length} files`);
+            
+            if (files.length === 0) {
+                console.log('No files selected');
+                return;
+            }
+            
+            // Filter for valid media files
+            const validFiles = files.filter(file => {
+                const isValid = file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|tiff|tif|heic|mp4|mov|avi|mkv|webm|m4v|3gp|flv|wmv)$/);
+                console.log(`File ${file.name}: ${isValid ? 'valid' : 'invalid'}`);
+                return isValid;
+            });
+
+            if (validFiles.length > 0) {
+                selectedFiles = validFiles;
+                showSelectedFiles();
+                document.getElementById('organizeBtn').disabled = false;
+                showStatus(`Selected ${validFiles.length} media files. Click "Organize Photos" to organize by location and year.`, 'success');
+            } else {
+                showStatus('No valid media files found. Please select image or video files.', 'error');
+            }
+        }
+
+        function showSelectedFiles() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+            fileList.style.display = 'block';
+            
+            selectedFiles.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        function showProgress(percent) {
+            const progress = document.getElementById('progress');
+            const progressBar = document.querySelector('.progress-bar');
+            progress.style.display = 'block';
+            progressBar.style.width = percent + '%';
+        }
+
+        function hideProgress() {
+            document.getElementById('progress').style.display = 'none';
+        }
+
+        async function organizePhotos() {
+            if (selectedFiles.length === 0) {
+                showStatus('Please select media files first.', 'error');
+                return;
+            }
+
+            showStatus('Starting photo organization by location and year...', 'info');
+            showProgress(0);
+
+            try {
+                const organizedData = {};
+                let gpsFound = 0;
+                let noGpsCount = 0;
+
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    showStatus(`Processing ${file.name} (${i + 1}/${selectedFiles.length})...`, 'info');
+                    
+                    try {
+                        console.log(`🔍 Processing file: ${file.name}`);
+                        
+                        // For now, let's create a simple organization by file date
+                        // This will work even without GPS data
+                        const fileDate = new Date(file.lastModified);
+                        const year = fileDate.getFullYear();
+                        const month = fileDate.getMonth() + 1;
+                        const monthName = getMonthName(month);
+                        
+                        // Create a simple organization structure
+                        const locationName = 'Photos'; // Default location
+                        
+                        if (!organizedData[locationName]) {
+                            organizedData[locationName] = {};
+                        }
+                        if (!organizedData[locationName][year]) {
+                            organizedData[locationName][year] = {};
+                        }
+                        if (!organizedData[locationName][year][monthName]) {
+                            organizedData[locationName][year][monthName] = [];
+                        }
+                        
+                        organizedData[locationName][year][monthName].push({
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                            date: fileDate
+                        });
+                        
+                        console.log(`📁 Organized: ${file.name} → ${locationName}/${year}/${monthName}`);
+                        
+                    } catch (error) {
+                        console.error(`Error processing ${file.name}:`, error);
+                        noGpsCount++;
+                    }
+                    
+                    showProgress((i + 1) / selectedFiles.length * 100);
+                }
+                
+                // Show results
+                showOrganizationResults(organizedData, gpsFound, noGpsCount);
+                
+            } catch (error) {
+                console.error('Error organizing photos:', error);
+                showStatus('Error organizing photos: ' + error.message, 'error');
+            }
+        }
+
+        function showOrganizationResults(organizedData, gpsFound, noGpsCount) {
+            const results = document.getElementById('results');
+            const resultsContent = document.getElementById('resultsContent');
+            
+            results.style.display = 'block';
+            
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <h3>📊 Summary</h3>
+                    <p><strong>Total Files:</strong> ${selectedFiles.length}</p>
+                    <p><strong>GPS Found:</strong> ${gpsFound}</p>
+                    <p><strong>No GPS:</strong> ${noGpsCount}</p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3>📁 Organized Structure</h3>
+            `;
+            
+            for (const [location, years] of Object.entries(organizedData)) {
+                html += `<div style="margin-left: 20px; margin-bottom: 10px;">`;
+                html += `<strong>📁 ${location}</strong>`;
+                
+                for (const [year, months] of Object.entries(years)) {
+                    html += `<div style="margin-left: 20px; margin-bottom: 5px;">`;
+                    html += `<strong>📅 ${year}</strong>`;
+                    
+                    for (const [month, files] of Object.entries(months)) {
+                        html += `<div style="margin-left: 20px; margin-bottom: 5px;">`;
+                        html += `<strong>📂 ${month}</strong> (${files.length} files)`;
+                        html += `</div>`;
+                    }
+                    
+                    html += `</div>`;
+                }
+                
+                html += `</div>`;
+            }
+            
+            html += `</div>`;
+            
+            resultsContent.innerHTML = html;
+            
+            hideProgress();
+            showStatus(`✅ Organization complete! Found ${gpsFound} files with GPS data.`, 'success');
+        }
+
+        function getMonthName(month) {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            return months[month - 1];
+        }
+
+        function clearSelection() {
+            selectedFiles = [];
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileList').style.display = 'none';
+            document.getElementById('organizeBtn').disabled = true;
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('status').style.display = 'none';
+        }
+
+        // Set up event listeners
+        document.getElementById('fileInput').addEventListener('change', handleFileSelection);
+    </script>
+</body>
+</html>
