@@ -1,0 +1,17 @@
+[phases.setup]
+nixPkgs = ["python39", "nodejs-18_x"]
+
+[phases.install]
+cmds = [
+    "pip install -r requirements.txt",
+    "cd frontend && npm install"
+]
+
+[phases.build]
+cmds = [
+    "cd frontend && npm run build",
+    "cp -r frontend/build/* frontend/public/"
+]
+
+[start]
+cmd = "cd frontend/public && python3 -m http.server $PORT"

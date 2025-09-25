@@ -11,15 +11,21 @@ import {
   Card,
   CardContent,
   Grid,
-  Chip
+  Chip,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   FolderOpen,
   PlayArrow,
   Stop,
   CheckCircle,
-  Error as ErrorIcon
+  Error as ErrorIcon,
+  CloudUpload,
+  Computer
 } from '@mui/icons-material';
+import photoService from './services/photoService';
+import { getPlatformCapabilities } from './utils/platform';
 
 function App() {
   const [sourceFolder, setSourceFolder] = useState('');
@@ -31,18 +37,22 @@ function App() {
     results: null
   });
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
+  const [folderType, setFolderType] = useState('local'); // 'local' or 'cloud'
 
-  // Check if running in Electron
-  const isElectron = window.electronAPI !== undefined;
+  // Get platform capabilities
+  const capabilities = getPlatformCapabilities();
+
+  // Set default tab based on platform
+  useEffect(() => {
+    if (capabilities.platform === 'web') {
+      setActiveTab(1); // Cloud storage tab for web
+    }
+  }, [capabilities.platform]);
 
   const handleSelectFolder = async () => {
-    if (!isElectron) {
-      setError('This app must be run in Electron');
-      return;
-    }
-
     try {
-      const folder = await window.electronAPI.selectFolder();
+      const folder = await photoService.selectFolder();
       if (folder) {
         setSourceFolder(folder);
         setError('');
@@ -52,9 +62,10 @@ function App() {
     }
   };
 
+
   const handleOrganizePhotos = async () => {
     if (!sourceFolder) {
-      setError('Please select a folder first');
+      setError('Please select or enter a folder path first');
       return;
     }
 
@@ -69,7 +80,7 @@ function App() {
 
     try {
       // Listen for real-time progress updates
-      const progressHandler = (event, progressData) => {
+      const progressHandler = (progressData) => {
         const progressPercent = Math.round((progressData.processed / progressData.total) * 100);
         const sourceInfo = progressData.source ? ` from ${progressData.source}` : '';
         setStatus(prev => ({
@@ -79,18 +90,9 @@ function App() {
         }));
       };
 
-      // Add progress listener
-      if (window.electronAPI && window.electronAPI.onProgress) {
-        window.electronAPI.onProgress(progressHandler);
-      }
+      const folderPath = capabilities.platform === 'electron' ? sourceFolder : 'root';
+      const result = await photoService.organizePhotos(folderPath, progressHandler);
 
-      const result = await window.electronAPI.organizePhotos(sourceFolder);
-      
-      // Remove progress listener
-      if (window.electronAPI && window.electronAPI.removeProgressListener) {
-        window.electronAPI.removeProgressListener(progressHandler);
-      }
-      
       if (result.success) {
         setStatus({
           status: 'completed',
@@ -140,28 +142,119 @@ function App() {
           Organize your photos by year automatically
         </Typography>
 
-        <Box sx={{ mb: 3 }}>
-          <TextField
-            fullWidth
-            label="Source Folder"
-            value={sourceFolder}
-            onChange={(e) => setSourceFolder(e.target.value)}
-            placeholder="Select a folder containing photos..."
-            InputProps={{
-              readOnly: true,
-              endAdornment: (
-                <Button
-                  variant="outlined"
-                  startIcon={<FolderOpen />}
-                  onClick={handleSelectFolder}
-                  sx={{ ml: 1 }}
-                >
-                  Browse...
-                </Button>
-              )
-            }}
-          />
+        {/* Platform Info */}
+        <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Running on: <strong>{capabilities.platform}</strong> platform
+            {capabilities.canAccessLocalFiles && ' • Local file access available'}
+            {capabilities.canAccessCloudFiles && ' • Cloud storage access available'}
+          </Typography>
         </Box>
+
+        {/* Platform Tabs */}
+        <Box sx={{ mb: 3 }}>
+          <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} centered>
+            {capabilities.canAccessLocalFiles && (
+              <Tab 
+                icon={<Computer />} 
+                label="Local Files" 
+                iconPosition="start"
+              />
+            )}
+            <Tab 
+              icon={<CloudUpload />} 
+              label="Cloud Storage" 
+              iconPosition="start"
+            />
+          </Tabs>
+        </Box>
+
+        {/* Local Files Tab */}
+        {activeTab === 0 && capabilities.canAccessLocalFiles && (
+          <Box sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              label="Source Folder"
+              value={sourceFolder}
+              onChange={(e) => setSourceFolder(e.target.value)}
+              placeholder="Select a folder containing photos..."
+              InputProps={{
+                readOnly: true,
+                endAdornment: (
+                  <Button
+                    variant="outlined"
+                    startIcon={<FolderOpen />}
+                    onClick={handleSelectFolder}
+                    sx={{ ml: 1 }}
+                  >
+                    Browse...
+                  </Button>
+                )
+              }}
+            />
+          </Box>
+        )}
+
+        {/* Local Files Tab - Browser Version */}
+        {activeTab === 0 && !capabilities.canAccessLocalFiles && (
+          <Box sx={{ mb: 3, textAlign: 'center', py: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Local File Access Not Available
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Local file system access is only available in the desktop version.
+              <br />
+              Use the Google Drive tab to organize cloud photos.
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={() => setActiveTab(1)}
+              startIcon={<CloudUpload />}
+            >
+              Switch to Google Drive
+            </Button>
+          </Box>
+        )}
+
+        {/* Cloud Storage Tab */}
+        {activeTab === 1 && (
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="h6" gutterBottom>
+                Cloud Storage
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Enter a cloud storage folder URL to organize photos
+              </Typography>
+              <Typography variant="body2" color="info.main" sx={{ mb: 3 }}>
+                Supported: Google Drive, Dropbox, OneDrive, iCloud, and more
+              </Typography>
+              <TextField
+                fullWidth
+                label="Cloud Storage Folder URL"
+                value={sourceFolder}
+                onChange={(e) => setSourceFolder(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/... or https://www.dropbox.com/sh/..."
+                sx={{ mb: 2 }}
+              />
+              <Button
+                variant="outlined"
+                startIcon={<FolderOpen />}
+                onClick={handleSelectFolder}
+                sx={{ mr: 2 }}
+              >
+                Browse Folder
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<CloudUpload />}
+                onClick={() => setFolderType('cloud')}
+              >
+                Use Cloud Storage
+              </Button>
+            </Box>
+          </Box>
+        )}
 
         <Box sx={{ mb: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
           <Button
