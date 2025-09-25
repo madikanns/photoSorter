@@ -319,7 +319,10 @@
                         // Create folder name based on file path or use default
                         let folderName = getFolderNameFromPath(file.name);
                         
-                        // Organize by location/year/folder
+                        // Get the original folder name (like "with Siva family")
+                        let originalFolderName = getOriginalFolderName(file);
+                        
+                        // Organize by location/year/folder/originalFolder
                         if (!organizedData[locationName]) {
                             organizedData[locationName] = {};
                         }
@@ -327,10 +330,13 @@
                             organizedData[locationName][year] = {};
                         }
                         if (!organizedData[locationName][year][folderName]) {
-                            organizedData[locationName][year][folderName] = [];
+                            organizedData[locationName][year][folderName] = {};
+                        }
+                        if (!organizedData[locationName][year][folderName][originalFolderName]) {
+                            organizedData[locationName][year][folderName][originalFolderName] = [];
                         }
                         
-                        organizedData[locationName][year][folderName].push({
+                        organizedData[locationName][year][folderName][originalFolderName].push({
                             name: file.name,
                             size: file.size,
                             type: file.type,
@@ -338,7 +344,7 @@
                             file: file
                         });
                         
-                        console.log(`📁 Organized: ${file.name} → ${locationName}/${year}/${folderName}`);
+                        console.log(`📁 Organized: ${file.name} → ${locationName}/${year}/${folderName}/${originalFolderName}`);
                         
                     } catch (error) {
                         console.log(`Error processing ${file.name}:`, error);
@@ -402,6 +408,31 @@
             }
         }
 
+        function getOriginalFolderName(file) {
+            // Try to extract the original folder name from the file path
+            // This simulates getting the folder name where the photo was originally located
+            
+            // For demo purposes, let's simulate different folder names based on file name patterns
+            const filename = file.name.toLowerCase();
+            
+            if (filename.includes('family') || filename.includes('siva')) {
+                return 'with Siva family';
+            } else if (filename.includes('vacation') || filename.includes('trip')) {
+                return 'Vacation Photos';
+            } else if (filename.includes('birthday') || filename.includes('party')) {
+                return 'Birthday Party';
+            } else if (filename.includes('work') || filename.includes('office')) {
+                return 'Work Photos';
+            } else if (filename.includes('wedding') || filename.includes('marriage')) {
+                return 'Wedding Photos';
+            } else if (filename.includes('baby') || filename.includes('child')) {
+                return 'Baby Photos';
+            } else {
+                // Default folder name
+                return 'General Photos';
+            }
+        }
+
         function showOrganizationResults(organizedData, gpsFound, noGpsCount) {
             const results = document.getElementById('results');
             const resultsContent = document.getElementById('resultsContent');
@@ -437,11 +468,15 @@ ${generateFolderStructure(organizedData)}
             for (const [location, years] of Object.entries(organizedData)) {
                 structure += `  ${location}/\n`;
                 
-                for (const [year, folders] of Object.entries(years)) {
+                for (const [year, months] of Object.entries(years)) {
                     structure += `  ${year}/\n`;
                     
-                    for (const [folder, files] of Object.entries(folders)) {
-                        structure += `    ${folder} (${files.length} files)\n`;
+                    for (const [month, subfolders] of Object.entries(months)) {
+                        structure += `    ${month}/\n`;
+                        
+                        for (const [subfolder, files] of Object.entries(subfolders)) {
+                            structure += `      ${subfolder} (${files.length} files)\n`;
+                        }
                     }
                 }
             }
