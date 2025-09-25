@@ -212,6 +212,45 @@
             fileInput.click();
         }
 
+        async function handleDirectorySelection(dirHandle) {
+            console.log('Directory selected:', dirHandle);
+            window.originalDirectoryHandle = dirHandle; // Store the directory handle for folder creation
+            
+            try {
+                // Request permission to write to the directory
+                if (dirHandle.requestPermission) {
+                    const permission = await dirHandle.requestPermission({ mode: 'readwrite' });
+                    if (permission !== 'granted') {
+                        showStatus('Permission denied. Cannot create organized folders without write access.', 'error');
+                        return;
+                    }
+                }
+                
+                // Scan the directory for files
+                const files = [];
+                for await (const [name, handle] of dirHandle.entries()) {
+                    if (handle.kind === 'file') {
+                        const file = await handle.getFile();
+                        if (file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|tiff|tif|heic|mp4|mov|avi|mkv|webm|m4v|3gp|flv|wmv)$/)) {
+                            files.push(file);
+                        }
+                    }
+                }
+                
+                if (files.length > 0) {
+                    selectedFiles = files;
+                    showSelectedFiles();
+                    document.getElementById('organizeBtn').disabled = false;
+                    showStatus(`Selected ${files.length} media files from folder. Click "Organize Photos" to organize by location and year.`, 'success');
+                } else {
+                    showStatus('No valid media files found in the selected folder.', 'error');
+                }
+            } catch (error) {
+                console.error('Error scanning directory:', error);
+                showStatus('Error scanning folder: ' + error.message, 'error');
+            }
+        }
+
         function handleFileSelection(event) {
             console.log('File selection triggered');
             const files = Array.from(event.target.files);
@@ -592,43 +631,113 @@ ${generateFolderStructure(organizedData)}
                 console.log('Creating organized folders...');
                 console.log('Organized data structure:', organizedData);
                 
-                // For now, we'll simulate folder creation since we can't actually create folders in the browser
-                // In a real implementation, this would use the File System Access API or create a downloadable zip
+                // Check if we have access to the original directory
+                if (!window.originalDirectoryHandle) {
+                    console.log('No directory access - creating downloadable zip instead');
+                    await createOrganizedZip(organizedData);
+                    return;
+                }
                 
                 let totalFiles = 0;
-                let folderStructure = 'Organized Photos/\n';
                 
+                // Create the main "Organized Photos" folder
+                let organizedPhotosHandle;
+                try {
+                    organizedPhotosHandle = await window.originalDirectoryHandle.getDirectoryHandle('Organized Photos', { create: true });
+                } catch (error) {
+                    console.error('Cannot create "Organized Photos" folder:', error);
+                    showStatus('Cannot create "Organized Photos" folder: ' + error.message, 'error');
+                    return;
+                }
+                
+                // Create folder structure and copy files
                 for (const [location, years] of Object.entries(organizedData)) {
-                    folderStructure += `  ${location}/\n`;
+                    console.log(`Creating location folder: ${location}`);
+                    const locationHandle = await organizedPhotosHandle.getDirectoryHandle(location, { create: true });
                     
                     for (const [year, months] of Object.entries(years)) {
-                        folderStructure += `    ${year}/\n`;
+                        console.log(`Creating year folder: ${year}`);
+                        const yearHandle = await locationHandle.getDirectoryHandle(year.toString(), { create: true });
                         
                         for (const [month, subfolders] of Object.entries(months)) {
-                            folderStructure += `      ${month}/\n`;
+                            console.log(`Creating month folder: ${month}`);
+                            const monthHandle = await yearHandle.getDirectoryHandle(month, { create: true });
                             
                             for (const [subfolder, files] of Object.entries(subfolders)) {
-                                folderStructure += `        ${subfolder} (${files.length} files)\n`;
-                                totalFiles += files.length;
+                                console.log(`Creating subfolder: ${subfolder}`);
+                                const subfolderHandle = await monthHandle.getDirectoryHandle(subfolder, { create: true });
                                 
-                                // Log each file being organized
-                                files.forEach(file => {
-                                    console.log(`✅ Organized: ${file.name} → ${location}/${year}/${month}/${subfolder}/`);
-                                });
+                                // Copy files to subfolder
+                                for (const fileInfo of files) {
+                                    try {
+                                        const fileHandle = await subfolderHandle.getFileHandle(fileInfo.name, { create: true });
+                                        const writable = await fileHandle.createWritable();
+                                        await writable.write(fileInfo.file);
+                                        await writable.close();
+                                        totalFiles++;
+                                        console.log(`✅ Copied: ${fileInfo.name} → Organized Photos/${location}/${year}/${month}/${subfolder}/`);
+                                    } catch (error) {
+                                        console.warn(`Could not copy file ${fileInfo.name}:`, error);
+                                    }
+                                }
                             }
                         }
                     }
                 }
                 
-                console.log('Folder structure created:');
-                console.log(folderStructure);
-                console.log(`Total files organized: ${totalFiles}`);
-                
-                showStatus(`✅ Created organized folder structure with ${totalFiles} files!`, 'success');
+                showStatus(`✅ Created organized folder structure with ${totalFiles} files! Check the "Organized Photos" folder in your selected directory.`, 'success');
                 
             } catch (error) {
                 console.error('Error creating organized folders:', error);
                 showStatus('Error creating organized folders: ' + error.message, 'error');
+            }
+        }
+
+        async function createOrganizedZip(organizedData) {
+            try {
+                console.log('Creating organized zip file...');
+                
+                // Create a downloadable zip file with the organized structure
+                const JSZip = window.JSZip;
+                if (!JSZip) {
+                    showStatus('JSZip library not loaded. Cannot create zip file.', 'error');
+                    return;
+                }
+                
+                const zip = new JSZip();
+                let totalFiles = 0;
+                
+                for (const [location, years] of Object.entries(organizedData)) {
+                    for (const [year, months] of Object.entries(years)) {
+                        for (const [month, subfolders] of Object.entries(months)) {
+                            for (const [subfolder, files] of Object.entries(subfolders)) {
+                                for (const fileInfo of files) {
+                                    const filePath = `Organized Photos/${location}/${year}/${month}/${subfolder}/${fileInfo.name}`;
+                                    zip.file(filePath, fileInfo.file);
+                                    totalFiles++;
+                                    console.log(`✅ Added to zip: ${fileInfo.name} → ${filePath}`);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Generate and download the zip file
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Organized Photos.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showStatus(`✅ Created organized zip file with ${totalFiles} files! Download started.`, 'success');
+                
+            } catch (error) {
+                console.error('Error creating organized zip:', error);
+                showStatus('Error creating organized zip: ' + error.message, 'error');
             }
         }
 
