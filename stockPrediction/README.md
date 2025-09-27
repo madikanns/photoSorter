@@ -28,15 +28,49 @@ A comprehensive stock prediction application that combines sentiment analysis, t
 - **Alert System** - Price and sentiment alerts
 - **Mobile Responsive** - Works on all devices
 
+## 🚀 Quick Start
+
+### **Option 1: Automated Setup (Recommended)**
+
+```bash
+# From the madikanns directory
+cd stockPrediction
+./quick-start.sh
+```
+
+### **Option 2: Manual Setup**
+
+```bash
+# 1. Start the application
+cd stockPrediction
+./start-local.sh
+```
+
+### **Option 3: Step-by-Step Setup**
+
+```bash
+# Backend setup
+cd stockPrediction/backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp env.example .env
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Frontend setup (in another terminal)
+cd stockPrediction/frontend
+npm install
+npm start
+```
+
 ## 🏗️ Architecture
 
 ```
 stockPrediction/
 ├── frontend/          # React dashboard
 ├── backend/           # FastAPI + ML services
-├── data/             # Training data and models
-├── docs/             # Documentation
-└── deployment/       # Docker and cloud configs
+├── deployment/       # Docker and cloud configs
+└── docs/             # Documentation
 ```
 
 ## 🛠️ Tech Stack
@@ -44,67 +78,22 @@ stockPrediction/
 ### **Frontend**
 - **React 18** - Modern UI framework
 - **TypeScript** - Type-safe development
-- **Chart.js/D3.js** - Interactive data visualization
 - **Material-UI** - Professional component library
 - **Redux Toolkit** - State management
-- **WebSocket** - Real-time data updates
+- **Chart.js** - Interactive data visualization
 
 ### **Backend**
 - **FastAPI** - High-performance Python web framework
-- **Python 3.9+** - Core backend language
-- **TensorFlow/PyTorch** - Machine learning frameworks
-- **Pandas/NumPy** - Data processing and analysis
-- **Scikit-learn** - Traditional ML algorithms
-- **Celery** - Background task processing
+- **SQLAlchemy** - Database ORM
+- **PostgreSQL** - Primary database
 - **Redis** - Caching and message broker
+- **TensorFlow/PyTorch** - Machine learning frameworks
 
 ### **Data Sources**
 - **Yahoo Finance API** - Stock price data
-- **Alpha Vantage** - Financial data and news
 - **NewsAPI** - Financial news aggregation
 - **Twitter API** - Social sentiment data
 - **Reddit API** - Forum sentiment analysis
-
-### **ML Models**
-- **LSTM Networks** - Time series prediction
-- **Transformer Models** - Advanced NLP for sentiment
-- **Ensemble Methods** - Combining multiple models
-- **Feature Engineering** - Technical indicators and sentiment scores
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Node.js** (v16 or higher)
-- **Python** (v3.9 or higher)
-- **Redis** (for background tasks)
-- **API Keys** (Yahoo Finance, NewsAPI, Twitter)
-
-### Installation
-
-1. **Clone and setup**
-   ```bash
-   git clone <repository-url>
-   cd stockPrediction
-   ```
-
-2. **Backend setup**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   python -m uvicorn app.main:app --reload
-   ```
-
-3. **Frontend setup**
-   ```bash
-   cd frontend
-   npm install
-   npm start
-   ```
-
-4. **Start Redis**
-   ```bash
-   redis-server
-   ```
 
 ## 📊 **Core Features**
 
@@ -135,38 +124,26 @@ stockPrediction/
 ## 🔧 **API Endpoints**
 
 ### **Stock Data**
-- `GET /api/stocks/{symbol}` - Get stock information
-- `GET /api/stocks/{symbol}/price` - Current price data
-- `GET /api/stocks/{symbol}/history` - Historical data
-- `GET /api/stocks/{symbol}/indicators` - Technical indicators
+- `GET /api/v1/stocks/{symbol}` - Get stock information
+- `GET /api/v1/stocks/{symbol}/price` - Current price data
+- `GET /api/v1/stocks/{symbol}/history` - Historical data
+- `GET /api/v1/stocks/{symbol}/indicators` - Technical indicators
 
 ### **Sentiment Analysis**
-- `GET /api/sentiment/{symbol}` - Current sentiment score
-- `GET /api/sentiment/{symbol}/news` - News sentiment analysis
-- `GET /api/sentiment/{symbol}/social` - Social media sentiment
-- `POST /api/sentiment/analyze` - Custom text analysis
+- `GET /api/v1/sentiment/{symbol}` - Current sentiment score
+- `GET /api/v1/sentiment/{symbol}/news` - News sentiment analysis
+- `GET /api/v1/sentiment/{symbol}/social` - Social media sentiment
+- `POST /api/v1/sentiment/analyze` - Custom text analysis
 
 ### **Predictions**
-- `GET /api/predictions/{symbol}` - Get ML predictions
-- `POST /api/predictions/train` - Retrain models
-- `GET /api/predictions/accuracy` - Model performance metrics
+- `GET /api/v1/predictions/{symbol}` - Get ML predictions
+- `POST /api/v1/predictions/{symbol}/predict` - Generate new prediction
+- `GET /api/v1/predictions/models` - Available prediction models
 
-## 📈 **Prediction Models**
-
-### **1. Technical Analysis Model**
-- **Input**: Price, volume, technical indicators
-- **Algorithm**: LSTM + Random Forest ensemble
-- **Accuracy**: 65-75% for 1-day predictions
-
-### **2. Sentiment-Enhanced Model**
-- **Input**: Technical data + sentiment scores
-- **Algorithm**: Multi-input LSTM with attention
-- **Accuracy**: 70-80% for 1-day predictions
-
-### **3. News Impact Model**
-- **Input**: News sentiment + market conditions
-- **Algorithm**: Transformer + CNN hybrid
-- **Accuracy**: 60-70% for news-driven movements
+### **Portfolio**
+- `GET /api/v1/portfolio/` - Get user portfolio
+- `GET /api/v1/portfolio/watchlist` - Get watchlist
+- `POST /api/v1/portfolio/watchlist/add` - Add to watchlist
 
 ## 🎯 **Use Cases**
 
